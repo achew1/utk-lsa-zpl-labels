@@ -131,86 +131,163 @@ Saves:
 ```
 python zebra_sequential_labels.py
 ```
-Generates the full ZPL file for the configured range side (e.g., `labels_5L.zpl`). Send this file to the Zebra printer.
+Generates the full ZPL file for the configured range side (e.g., `labels_5L.zpl`). Send this file to the Zebra printer using one of the methods below.
 
 ---
 
-## 🖨️ Sending to the Printer
+## 🖨️ Printing the Labels — Step by Step
 
-**Option A — Network (Direct Print)**
-Set `PRINT_DIRECTLY = True` and enter the printer's IP in the script:
+### Before You Print — Printer Setup Checklist
+1. **Load the correct label stock** — 1" H × 2" W labels. Make sure the roll is loaded correctly per your printer model's manual.
+2. **Calibrate the printer** — After loading new label stock, most Zebra printers need to be calibrated so they detect the label size correctly:
+   - Hold the **Feed** button for ~2 seconds until the printer flashes, then release.
+   - The printer will feed a few labels and detect the gap between them automatically.
+3. **Confirm the printer is online** — The status light should be solid green. Flashing or amber usually means a paper or ribbon issue.
+
+---
+
+### Option A — Direct Network Print (Recommended)
+
+This is the fastest method if your printer is connected to your facility's network (Wi-Fi or ethernet).
+
+#### Step 1 — Find the Printer's IP Address
+The easiest way is to print a **configuration label** directly from the printer itself:
+1. Make sure the printer is powered on and has label stock loaded
+2. Hold the **Feed** button for approximately **5 seconds** until the printer starts printing automatically
+3. A configuration label will print — the **IP address** will be listed on it
+   - It will look something like: `192.168.1.100`
+
+> 💡 If the IP shows as `0.0.0.0` the printer hasn't been assigned a network address yet — connect it to your network via ethernet or Wi-Fi and try again, or check with your IT department.
+
+Alternatively, your IT department or network router's admin page can show you the IP address assigned to the printer.
+
+#### Step 2 — Update the Script with the Printer's IP
+Open `zebra_sequential_labels.py` and find these two lines near the top of the `CONFIGURATION` section:
+
+```python
+PRINT_DIRECTLY = False
+PRINTER_IP     = "192.168.1.100"
+```
+
+Change them to:
+
 ```python
 PRINT_DIRECTLY = True
-PRINTER_IP     = "192.168.1.100"   # ← Your printer's IP address
-PRINTER_PORT   = 9100
+PRINTER_IP     = "192.168.X.XXX"   # ← Replace with your printer's actual IP address
+PRINTER_PORT   = 9100              # ← Leave this as 9100 (standard Zebra port)
 ```
-Then run the script normally — it will send the job automatically.
 
-**Option B — File Transfer**
-Copy the `.zpl` file to the printer via USB or Zebra Setup Utilities.
+> 💡 **Tip:** Once you have set the correct IP, commit this change to Git so you don't have to look it up again. Just remember to set `PRINT_DIRECTLY = False` when generating ZPL files without printing.
 
----
-
-## 🏷️ Label Layout Details
-
-| Property | Value |
-|----------|-------|
-| Label width | 2 inches (406 dots @ 203 dpi) |
-| Label height | 1 inch (203 dots @ 203 dpi) |
-| Font - descriptor | 18 dots (small, above each value) |
-| Font - value | 80 dots (large, vertically centered) |
-| Columns | Range \| Ladder \| Shelf (divided by thin lines) |
-| Ladder padding | 2 digits (01–99) |
-| Shelf padding | 2 digits (01–99) |
+#### Step 3 — Generate and Print
+Run the script normally:
+```
+python zebra_sequential_labels.py
+```
+The script will generate the ZPL and send it directly to the printer over the network. The printer should begin printing immediately.
 
 ---
 
-## 🌿 Recommended Git Workflow
+### Option B — Manual File Transfer via Zebra Setup Utilities
+
+Use this method if you can't print directly over the network, or if you want more control over the print job.
+
+#### Step 1 — Install Zebra Setup Utilities (ZSU)
+Download it free from Zebra's website:
+👉 [zebra.com/us/en/support-downloads/software/printer-software/zebra-setup-utility.html](https://www.zebra.com/us/en/support-downloads/software/printer-software/zebra-setup-utility.html)
+
+Install and open it. It will detect your connected Zebra printer automatically (USB or network).
+
+#### Step 2 — Generate the ZPL File
+Make sure `PRINT_DIRECTLY = False` in the script, then run:
+```
+python zebra_sequential_labels.py
+```
+This creates the `.zpl` file (e.g., `labels_5L.zpl`) in your project folder.
+
+#### Step 3 — Send to Printer via ZSU
+1. Open **Zebra Setup Utilities**
+2. Select your printer from the list
+3. Click **"Open Printer Tools"**
+4. Go to the **"Action"** tab
+5. Click **"Send file to printer"**
+6. Browse to and select your `.zpl` file
+7. Click **Send** — the printer will begin printing
+
+---
+
+### Option C — Copy via USB Drive
+
+If the printer has a USB host port (a full-size USB-A port on the printer itself):
+
+1. Copy the `.zpl` file to the root of a USB drive
+2. Plug the USB drive into the printer
+3. The printer should detect and print the file automatically
+
+> ⚠️ Not all Zebra models support this. Check your printer's manual.
+
+---
+
+### Option D — Windows Port (Advanced)
+
+If the printer is shared on the network as a Windows printer:
+
+```
+copy /b labels_5L.zpl \\printername\sharename
+```
+
+Or if connected via USB and mapped to a port (e.g., `LPT1`):
+```
+copy /b labels_5L.zpl LPT1
+```
+
+---
+
+## 🔁 Partial Reprints
+
+If you need to reprint labels for a specific ladder range (e.g., Ladders 12–15 got damaged):
+
+1. Set `LADDER_START = 12` in the configuration
+2. Set `NUM_LADDERS = 4` (to cover ladders 12, 13, 14, 15)
+3. Run the script — it will generate only those labels
+
+---
+
+## 🗂️ Git Workflow
 
 ### Initial Setup
 ```bash
 git init
-git add zebra_sequential_labels.py README.md
+git add zebra_sequential_labels.py README.md .gitignore
 git commit -m "Initial commit - Range 5L configuration"
 ```
 
-### Creating a `.gitignore`
-Create a file named `.gitignore` in the project folder with:
-```
-*.zpl
-*.png
-__pycache__/
-```
-
-### Per Range Side Workflow
+### Committing Each Range Side
 ```bash
-# 1. Edit RANGE_SIDE, NUM_LADDERS, NUM_SHELVES in the script
-# 2. Preview and verify
-# 3. Generate and print
-# 4. Commit the configuration change
+# After updating config for a new range side:
 git add zebra_sequential_labels.py README.md
-git commit -m "Configure and complete Range 5R - 54 ladders, 15 shelves"
+git commit -m "Configure and complete Range 3R - 12 ladders x 8 shelves"
 ```
 
-This way, every range side's settings are saved in Git history and can be reviewed or re-run at any time.
+### Recommended Commit Message Format
+```
+Configure Range {SIDE} - {LADDERS} ladders x {SHELVES} shelves
+```
 
 ---
 
-## 🔁 Reprinting a Partial Run
+## 🧪 Testing Checklist (Per Range Side)
 
-If you need to reprint from a specific ladder (e.g., Ladder 12 onwards after a jam):
+Before every print run, work through this checklist:
 
-```python
-LADDER_START = 12    # ← Start from ladder 12
-NUM_LADDERS  = 47    # ← Remaining ladders (58 - 11 = 47)
-```
-
-This generates only the remaining labels without reprinting the ones already applied.
+- [ ] Updated `RANGE_SIDE`, `NUM_LADDERS`, `NUM_SHELVES` in the script
+- [ ] Ran `--preview` and confirmed first/last/rollover labels are correct
+- [ ] Ran `--png` and visually confirmed label layout
+- [ ] Printer is online (solid green status light)
+- [ ] Correct label stock loaded and printer calibrated
+- [ ] Updated the Range Side Reference Table in this README
+- [ ] Committed the configuration to Git
 
 ---
 
-## 📞 Support / Notes
-
-- ZPL reference: [Zebra ZPL Manual](https://www.zebra.com/content/dam/zebra/manuals/printers/common/programming/zpl-zbi2-pm-en.pdf)
-- Label previewer: [Labelary Online Viewer](http://labelary.com/viewer.html)
-- Python download: [python.org](https://python.org)
+*Last updated: Range 5L — 58 ladders × 15 shelves = 870 labels*
