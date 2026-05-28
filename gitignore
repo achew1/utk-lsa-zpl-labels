@@ -1,5 +1,7 @@
 # Generated label files — no need to commit these
-*.zpl
+# Note: test_labels_TL_3x3.zpl is intentionally excluded from this rule
+# and IS committed to the repo as a permanent test reference
+labels_*.zpl
 *.png
 
 # Python cache
