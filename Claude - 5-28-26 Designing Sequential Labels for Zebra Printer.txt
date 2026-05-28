@@ -1241,3 +1241,210 @@ Here's what was updated across all three files:
 
 Now when you initialize the repo, the test file will be part of it for anyone who uses it in the future! 🙂
 
+
+[05/28/2026 18:24:34 +00:00] Chew, Amy:
+Thanks pal :)
+
+Response:
+You're welcome! 😄 You've got a solid setup ready to go:
+
+- ✅ Python script with preview and PNG modes
+- ✅ README fully documented
+- ✅ Test file ready for when the printer arrives
+- ✅ GitHub repo live and public
+
+When you get those ladder and shelf counts, you'll be ready to roll! Reach out anytime. 🙂
+
+[05/28/2026 18:33:21 +00:00] Chew, Amy:
+One small adjustment, although it will mean changing the py file and the zpl files we've generated. The numbers are still quite small on the label. Can you generate a single zpl example for me with the numbers 10% larger so I can see if that would work better?
+
+Response:
+Sure! Current `FONT_LARGE` is 80 dots, so 10% bigger is **88 dots**. That also means recalculating the vertical centering:
+
+$$Y_{center} = \frac{203 - 88}{2} = 57.5 \approx 58 \text{ dots}$$
+
+So `ROW_VALUE_Y = 58` and `ROW_LABEL_Y = 40`. Here's a single label to test:
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,40^A0N,18,18^FDRNG^FS
+^FO10,58^A0N,88,88^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,40^A0N,18,18^FDLDR^FS
+^FO148,58^A0N,88,88^FD07^FS
+^FO278,0^GB1,203,1^FS
+^FO286,40^A0N,18,18^FDSHF^FS
+^FO286,58^A0N,88,88^FD12^FS
+^XZ
+```
+
+Upload that to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** and let me know if it looks better — or if you'd like to go even bigger! 🙂
+
+[05/28/2026 18:34:10 +00:00] Chew, Amy:
+How big do you think we could go?
+
+Response:
+Good question! Let's do the math. The label is **203 dots tall** and we need to fit:
+
+- Small descriptor text: **18 dots**
+- A small gap between descriptor and number: **~4 dots**
+- The large number: **X dots**
+- Top and bottom margins: **~5 dots each**
+
+$$203 - 18 - 4 - 5 - 5 = 171 \text{ dots theoretical max}$$
+
+So realistically anywhere up to about **160-165 dots** before things get too tight. Here are some sensible stepping stones to try:
+
+| Font Size | % Increase from current | `ROW_VALUE_Y` | `ROW_LABEL_Y` |
+|---|---|---|---|
+| 88 dots | +10% (already tested) | 58 | 40 |
+| 100 dots | +25% | 52 | 34 |
+| 120 dots | +50% | 42 | 24 |
+| 140 dots | +75% | 32 | 14 |
+| 160 dots | +100% | 22 | 4 (very tight!) |
+
+---
+
+I'd suggest trying **120 dots** as a good next jump — it's 50% bigger than current and should still have comfortable margins. Want me to generate a single test label at 120 dots to preview in ZPL Printer Online?
+
+[05/28/2026 18:34:49 +00:00] Chew, Amy:
+ok, let's try 120
+
+Response:
+Here you go!
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,24^A0N,18,18^FDRNG^FS
+^FO10,42^A0N,120,120^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,24^A0N,18,18^FDLDR^FS
+^FO148,42^A0N,120,120^FD07^FS
+^FO278,0^GB1,203,1^FS
+^FO286,24^A0N,18,18^FDSHF^FS
+^FO286,42^A0N,120,120^FD12^FS
+^XZ
+```
+
+Upload to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** and let me know how it looks! The descriptor text will be pretty close to the top edge but should still be readable. 🙂
+
+[05/28/2026 18:35:51 +00:00] Chew, Amy:
+Let's do 112 and recenter vertically
+
+Response:
+$$Y_{center} = \frac{203 - 112}{2} = 45.5 \approx 46 \text{ dots}$$
+
+So `ROW_VALUE_Y = 46` and `ROW_LABEL_Y = 28`. Here you go!
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,28^A0N,18,18^FDRNG^FS
+^FO10,46^A0N,112,112^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,28^A0N,18,18^FDLDR^FS
+^FO148,46^A0N,112,112^FD07^FS
+^FO278,0^GB1,203,1^FS
+^FO286,28^A0N,18,18^FDSHF^FS
+^FO286,46^A0N,112,112^FD12^FS
+^XZ
+```
+
+The numbers should be nicely centered with comfortable margins on both the top and bottom. Upload to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** and let me know! 🙂
+
+[05/28/2026 18:37:25 +00:00] Chew, Amy:
+Can we increase the space between the rng/ldr/shf labels and the numbers, please?
+
+Response:
+Currently the small descriptor ends right where the large number begins — zero gap! The descriptor text is 18 dots tall, so:
+
+- `ROW_LABEL_Y = 28` → descriptor ends at `28 + 18 = 46` → number starts at `46` — no gap at all!
+
+To add breathing room, let's move the descriptor up to `ROW_LABEL_Y = 16`, giving a **12 dot gap** while keeping the number vertically centered at `46`:
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,16^A0N,18,18^FDRNG^FS
+^FO10,46^A0N,112,112^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,16^A0N,18,18^FDLDR^FS
+^FO148,46^A0N,112,112^FD07^FS
+^FO278,0^GB1,203,1^FS
+^FO286,16^A0N,18,18^FDSHF^FS
+^FO286,46^A0N,112,112^FD12^FS
+^XZ
+```
+
+Upload to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** and let me know if you'd like even more or less space! 🙂
+
+[05/28/2026 18:38:29 +00:00] Chew, Amy:
+The numbers still look higher up on the label than vertically centered.
+
+Response:
+The issue is that we've been centering just the **number** on the label, but visually your eye sees the **whole block** (descriptor + gap + number) together. Let's center the entire block instead:
+
+$$\text{Total block height} = 18 \text{ (descriptor)} + 12 \text{ (gap)} + 112 \text{ (number)} = 142 \text{ dots}$$
+
+$$Y_{top} = \frac{203 - 142}{2} = 30.5 \approx 31 \text{ dots}$$
+
+So `ROW_LABEL_Y = 31` and `ROW_VALUE_Y = 31 + 18 + 12 = 61`. Give this a try:
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,31^A0N,18,18^FDRNG^FS
+^FO10,61^A0N,112,112^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,31^A0N,18,18^FDLDR^FS
+^FO148,61^A0N,112,112^FD07^FS
+^FO278,0^GB1,203,1^FS
+^FO286,31^A0N,18,18^FDSHF^FS
+^FO286,61^A0N,112,112^FD12^FS
+^XZ
+```
+
+That should look much more balanced! Let me know how it looks. 🙂
+
+[05/28/2026 18:40:41 +00:00] Chew, Amy:
+Oh that's MUCH better! Ok, let's update everything. The python file, the 5L zpl file, and the TL test ZPL file, for sure, anything else?
+
+Response:
+Good catch to think through everything! Here's what needs updating:
+
+- ✅ **Python script** — `FONT_LARGE`, `ROW_LABEL_Y`, `ROW_VALUE_Y` and the centering math comments
+- ✅ **5L 3×3 test ZPL** — all label positions and font sizes
+- ✅ **TL 3×3 test ZPL** — same
+
+The **README** and **gitignore** don't reference specific font sizes or positioning values so those are fine as-is. Let me update all three at once!
+
+
+Also updating the README to reflect the new font size and centering math:
+Here's everything that was updated:
+
+| File | What Changed |
+|---|---|
+| **Python script** | `FONT_LARGE = 112`, `ROW_LABEL_Y = 31`, `ROW_VALUE_Y = 61`, updated centering math comments |
+| **TL 3x3 test file** | All 9 labels updated with new font and positioning |
+| **5L 3x3 test file** | All 9 labels updated with new font and positioning |
+| **README** | Layout diagram and centering math updated to reflect 112pt font and whole-block centering |
+
+The only file not updated is the `.gitignore` since nothing changed there. Go ahead and upload the TL test file to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** to confirm everything looks right before committing to the repo! 🙂
+
