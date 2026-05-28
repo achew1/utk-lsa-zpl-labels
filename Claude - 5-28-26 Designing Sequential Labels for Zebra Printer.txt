@@ -1,0 +1,1243 @@
+Conversation Title: Designing Sequential Labels for Zebra Printer
+Agent: ONEchat
+
+[05/27/2026 20:03:21 +00:00] Chew, Amy:
+How can I design labels for a Zebra printer that will print sequentially? The labels would have multiple sequential locations on it (range, ladder, and shelf)
+
+Response:
+
+
+Great question! Here's a comprehensive breakdown of how to design sequential location labels for a Zebra printer using **ZPL (Zebra Programming Language)**, covering your three fields: **Range**, **Ladder**, and **Shelf**.
+
+---
+
+## How Sequential Zebra Labels Work
+
+There are **two main approaches** depending on your use case:
+
+### Approach 1: ZPL `^SN` (Serial Number) — Built-in Auto-Increment
+The `^SN` command tells the printer to auto-increment a field across multiple label copies[doc1]. You pair it with `^PQ` (print quantity) and the printer handles the counting internally[doc2].
+
+**Syntax:** `^SNs,i,p`
+- `s` = starting value (e.g., `001`)
+- `i` = increment step (e.g., `1`)
+- `p` = pad with leading zeros (`Y` or `N`)
+
+**Best for:** A single field that increments linearly (e.g., Shelf 001, 002, 003...)[doc2][doc1]
+
+### Approach 2: Generate Labels Programmatically
+For **multi-field sequential logic** (like Range + Ladder + Shelf all incrementing with nested rollover), you generate one ZPL block per label and concatenate them into a single print job[doc3]. This gives you full control over the logic.
+
+**Best for:** Complex sequences like Range A → Ladder 1–10 → Shelf 1–5 (nested counters)[doc3]
+
+---
+
+## Recommended Strategy for Range / Ladder / Shelf
+
+Since your labels have **three interdependent sequential fields**, the programmatic approach is the most reliable. Here's the logic:
+
+- **Shelf** increments on every label (1 → 2 → 3...)
+- **Ladder** increments when Shelf rolls over
+- **Range** increments when Ladder rolls over
+
+I've put together a complete Python script and a sample ZPL template below:
+Here's a full breakdown of how to design sequential location labels for a Zebra printer:
+
+---
+
+## How Sequential Zebra Labels Work
+
+Zebra printers use **ZPL (Zebra Programming Language)**[doc4] to define label content and layout. For sequential labels, you have two main approaches:
+
+### Option 1 — Built-in `^SN` Command (Simple Single Counter)
+ZPL has a native `^SN` (Serial Number) command[doc1] that auto-increments a value across copies when combined with `^PQ` (print quantity):
+
+```zpl
+^XA
+^FO30,20^A0N,40,40^FDShelf: ^FS
+^FO200,20^SN001,1,Y^FS   ← starts at 001, increments by 1, zero-padded
+^PQ50                     ← print 50 copies
+^XZ
+```
+This is great for **one sequential field**, but gets complex when you need three fields (Range, Ladder, Shelf) that roll over into each other.
+
+---
+
+### Option 2 — Pre-generated ZPL (Recommended for Multi-Field)
+For **Range + Ladder + Shelf** with nested rollover (e.g., Shelf 1–5 per Ladder, Ladders 1–10 per Range), the cleanest approach is to **generate all labels programmatically** and concatenate them into one ZPL print job[doc3]. Each label is its own `^XA...^XZ` block.
+
+The Python script above does exactly this. Here's what each label looks like:
+
+```
+┌──────────────────────────────────┐
+│  Range: A       Ladder: 01       │
+│         Shelf: 001               │
+│  ||||||||||||||||||||||||||||     │
+│       A-01-001  (barcode)        │
+└──────────────────────────────────┘
+```
+
+---
+
+## Key ZPL Commands Used[doc4]
+
+| Command | Purpose | Example |
+|---|---|---|
+| `^XA` / `^XZ` | Start / end label | — |
+| `^FO x,y` | Set field position (x, y in dots) | `^FO30,20` |
+| `^FD` / `^FS` | Field data / field separator | `^FDRange: A^FS` |
+| `^CF0,40` | Set font size (40 dots tall) | — |
+| `^BCN,80,Y,N,N` | Code 128 barcode | — |
+| `^PW` / `^LL` | Label width / length in dots | `^PW812` |
+| `^SN` | Auto-increment serial number | `^SN001,1,Y` |
+
+---
+
+## Using the Script
+
+1. **Configure** the `RANGES`, `LADDERS`, and `SHELVES` lists at the top to match your actual location scheme.
+2. **Run** it with Python — it generates `location_labels.zpl`.
+3. **Send** the `.zpl` file to your printer via:
+   - **Zebra Setup Utilities** (drag & drop the file)
+   - **Network print** — set `PRINT_DIRECTLY = True` and enter your printer's IP
+   - **USB** — copy to the printer's shared port
+
+> 💡 **Tip:** Test your ZPL visually before printing at [labelary.com/viewer.html](http://labelary.com/viewer.html) — paste your ZPL and preview it instantly without wasting labels[doc4].
+
+Let me know your label size, DPI, or exact location numbering scheme and I can tailor the script further!
+
+[05/27/2026 20:29:01 +00:00] Chew, Amy:
+This is for a high density library storage facility. The shelf labels will be one inch high by 2 inches wide. It would be nice if the numbers were larger than the text, for easy wayfinding.
+9 ranges with 2 sides to each range (1L, 1R, 2L, 2R etc.) The number of ladders per range side and the number of shelves per ladder may differ. It may be best to set up individual jobs for each range side.
+
+Response:
+Great context! Let me update the script to reflect your library storage setup:
+
+- **Label size:** 1" H × 2" W at 203 dpi = **203 × 406 dots**
+- **Layout:** Large numbers for wayfinding, smaller descriptive text labels
+- **Structure:** Range sides (1L, 1R … 9L, 9R), with configurable ladders/shelves per job
+- **Workflow:** One script run = one range side (e.g., 3R with 12 ladders × 8 shelves)
+Here's what changed and how to use it for your library:
+
+---
+
+## What's New
+
+### Label Design (1" × 2" @ 203 dpi)
+The label is split into **three columns** separated by thin vertical dividers:
+
+```
+┌────────────┬────────────┬────────────┐
+│  RNG       │  LDR       │  SHF       │  ← small descriptor (18pt)
+│  3R        │  04        │  002       │  ← large bold value  (60pt)
+└────────────┴────────────┴────────────┘
+```
+
+The **large numbers dominate** for quick visual wayfinding, while the small "RNG / LDR / SHF" labels above each value provide context.
+
+### Per-Job Range Side Setup
+Each print job is configured with just **four variables** at the top:
+
+| Variable | Example | Meaning |
+|---|---|---|
+| `RANGE_SIDE` | `"3R"` | The range side being printed |
+| `NUM_LADDERS` | `12` | How many ladders on this side |
+| `NUM_SHELVES` | `8` | How many shelves per ladder |
+| `LADDER_START` | `1` | Starting ladder number |
+
+Labels print in physical order: **3R-01-01 → 3R-01-08 → 3R-02-01...** so you can peel and apply as they come out.
+
+---
+
+## Workflow for All 18 Range Sides
+
+1. Open the script and set `RANGE_SIDE`, `NUM_LADDERS`, and `NUM_SHELVES` for the first side (e.g., `"1L"`)
+2. Run the script → generates `labels_1L.zpl`
+3. Send to printer, apply labels
+4. Repeat for `1R`, `2L`, `2R` ... `9R`
+
+> 💡 **Preview tip:** Paste a few label blocks into [labelary.com/viewer.html](http://labelary.com/viewer.html) (set size to 2" × 1") to verify the layout before printing a full run.
+
+Let me know if you'd like to add a barcode, adjust the font sizes, or tweak the column spacing!
+
+[05/27/2026 20:31:42 +00:00] Chew, Amy:
+An example, Range 5L will have 58 ladders and 15 shelves per ladder.
+
+Response:
+Let me preview what that looks like with those numbers before you commit to a full print run.
+The script is updated with Range 5L as the working example. Here's what that job looks like by the numbers:
+
+| Setting | Value |
+|---|---|
+| `RANGE_SIDE` | `"5L"` |
+| `NUM_LADDERS` | `58` |
+| `NUM_SHELVES` | `15` |
+| **Total labels** | **870** |
+
+Labels will print in order: `5L-01-01` → `5L-01-15` → `5L-02-01` → ... → `5L-58-15`
+
+---
+
+## A Few Things to Note for This Range
+
+- **Ladder padding** stays at 2 digits (`01`–`58`) — fits cleanly in the large font column without overflow.
+- **Shelf padding** is 2 digits (`01`–`15`) — same treatment.
+- The `FONT_LARGE = 60` dot height was chosen so that 2-character values (like `58` or `5L`) fill the column without clipping on a 203-dot tall label.
+
+To run the next range side, just change `RANGE_SIDE`, `NUM_LADDERS`, and `NUM_SHELVES` at the top — the output file name (`labels_5L.zpl`) updates automatically. Let me know if you'd like to add a barcode or adjust anything about the layout!
+
+[05/27/2026 20:35:15 +00:00] Chew, Amy:
+what should I copy into labelary to test this?
+
+Response:
+Great question! Here's a single label block you can paste directly into Labelary to test the layout. This represents label **5L / Ladder 04 / Shelf 007**:
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,30^A0N,60,60^FD5L^FS
+
+^FO140,0^GB1,203,1^FS
+
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,30^A0N,60,60^FD04^FS
+
+^FO278,0^GB1,203,1^FS
+
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,30^A0N,60,60^FD007^FS
+
+^XZ
+```
+
+---
+
+## Steps in Labelary
+
+1. Go to **[labelary.com/viewer.html](http://labelary.com/viewer.html)**
+2. Paste the ZPL above into the text box on the left
+3. Set the label size dropdowns to:
+   - **Width:** `2.00 in`
+   - **Height:** `1.00 in`
+4. Set **DPI** to `203`
+5. Click **Refresh** (or it may auto-render)
+
+You should see a clean 2×1" label with three columns — `5L`, `04`, and `007` — in large text with `RNG`, `LDR`, `SHF` descriptors above each. Let me know how it looks and if anything needs adjusting!
+
+[05/27/2026 20:36:55 +00:00] Chew, Amy:
+Can we make the numbers larger and limit the shelves to two digits?
+
+Response:
+Good call — shelves only go up to 15, so two digits is all you need, and bumping up the font will make wayfinding even easier. The main constraint is fitting within the 203-dot label height.
+
+Here's what I'd suggest:
+
+- **`FONT_SMALL`** stays at `18` (descriptor labels are fine as-is)
+- **`FONT_LARGE`** bumped from `60` → `80` dots
+- **`ROW_VALUE_Y`** adjusted from `30` → `28` to keep the large text from clipping the bottom edge (`28 + 80 = 108`... well within 203 dots, so there's actually room to go even bigger if you want)
+
+Test this single label block in Labelary first:
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,28^A0N,80,80^FD5L^FS
+
+^FO140,0^GB1,203,1^FS
+
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,28^A0N,80,80^FD04^FS
+
+^FO278,0^GB1,203,1^FS
+
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,28^A0N,80,80^FD07^FS
+
+^XZ
+```
+
+If that looks good, let me know and I'll update the script with `FONT_LARGE = 80` and shelf padding locked to 2 digits (`f"{shelf:02d}"`). Or if you want to go even bigger (e.g., `100` dots), I can try that too — just say the word!
+
+[05/27/2026 20:38:46 +00:00] Chew, Amy:
+Is there additional content I can paste into lebelary to see if the sequential features work?
+
+Response:
+Yes! You can paste multiple `^XA...^XZ` blocks back-to-back and Labelary will render each one as a separate label you can scroll through. Here are **6 sequential labels** spanning a ladder rollover (end of Ladder 04 into Ladder 05) so you can verify the counting logic:
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,28^A0N,80,80^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,28^A0N,80,80^FD04^FS
+^FO278,0^GB1,203,1^FS
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,28^A0N,80,80^FD13^FS
+^XZ
+
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,28^A0N,80,80^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,28^A0N,80,80^FD04^FS
+^FO278,0^GB1,203,1^FS
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,28^A0N,80,80^FD14^FS
+^XZ
+
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,28^A0N,80,80^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,28^A0N,80,80^FD04^FS
+^FO278,0^GB1,203,1^FS
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,28^A0N,80,80^FD15^FS
+^XZ
+
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,28^A0N,80,80^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,28^A0N,80,80^FD05^FS
+^FO278,0^GB1,203,1^FS
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,28^A0N,80,80^FD01^FS
+^XZ
+
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,28^A0N,80,80^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,28^A0N,80,80^FD05^FS
+^FO278,0^GB1,203,1^FS
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,28^A0N,80,80^FD02^FS
+^XZ
+
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,5^A0N,18,18^FDRNG^FS
+^FO10,28^A0N,80,80^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,5^A0N,18,18^FDLDR^FS
+^FO148,28^A0N,80,80^FD05^FS
+^FO278,0^GB1,203,1^FS
+^FO286,5^A0N,18,18^FDSHF^FS
+^FO286,28^A0N,80,80^FD03^FS
+^XZ
+```
+
+---
+
+## What to Look For
+
+| Check | Expected |
+|---|---|
+| Shelf counts up | 13 → 14 → 15 |
+| Shelf resets after 15 | 15 → 01 ✓ |
+| Ladder increments on reset | 04 → 05 ✓ |
+| Range stays constant | Always `5L` |
+| All values zero-padded | `04`, `15`, `01` not `4`, `15`, `1` |
+
+Once you're happy with the layout and the font size, just confirm and I'll update the script with `FONT_LARGE = 80` and 2-digit shelf padding locked in!
+
+[05/27/2026 20:39:27 +00:00] Chew, Amy:
+Can we center the numbers vertically on the label?
+
+Response:
+Sure! The key is calculating the Y position so the large number is centered in the 203-dot label height:
+
+$$Y_{center} = \frac{203 - 80}{2} = 61.5 \approx 62 \text{ dots}$$
+
+So `ROW_VALUE_Y = 62` will vertically center the 80-dot numbers. The small descriptor label sits just above that at `ROW_LABEL_Y = 44` (giving ~18 dots of space). Test this in Labelary:
+
+```zpl
+^XA
+^PW406
+^LL203
+^LH0,0
+^CI28
+^FO10,44^A0N,18,18^FDRNG^FS
+^FO10,62^A0N,80,80^FD5L^FS
+^FO140,0^GB1,203,1^FS
+^FO148,44^A0N,18,18^FDLDR^FS
+^FO148,62^A0N,80,80^FD04^FS
+^FO278,0^GB1,203,1^FS
+^FO286,44^A0N,18,18^FDSHF^FS
+^FO286,62^A0N,80,80^FD07^FS
+^XZ
+```
+
+If that looks good, confirm and I'll update the script with:
+- `FONT_LARGE = 80`
+- `ROW_VALUE_Y = 62`
+- `ROW_LABEL_Y = 44`
+- Shelf padding locked to 2 digits
+
+[05/27/2026 20:41:13 +00:00] Chew, Amy:
+That looks good. To clarify, is there a way to test to see if a sequential code will work to put out the correct content before printing without pasting multiple labels?
+
+Response:
+Yes! The easiest way is to just **run the Python script itself** without printing. It already saves the `.zpl` file locally — you can then inspect it a few ways:
+
+---
+
+## Option 1 — Check the Console Output
+When you run the script, it prints a summary:
+```
+Range Side : 5L
+Ladders    : 1 – 58
+Shelves    : 1 – 15
+Total labels generated: 870
+```
+This confirms the loop logic is working and the count is correct (58 × 15 = 870).
+
+---
+
+## Option 2 — Inspect the `.zpl` File Directly
+Open `labels_5L.zpl` in any text editor and manually check:
+- The **first label** — should be `5L / 01 / 01`
+- The **16th label** — should be `5L / 02 / 01` (ladder rollover)
+- The **last label** — should be `5L / 58 / 15`
+
+Use **Ctrl+F** to search for `^FD58` or `^FD15` to jump to the end quickly.
+
+---
+
+## Option 3 — Add a Quick Spot-Check to the Script
+I can add a `--preview` mode that prints the first, last, and a few rollover labels to the console so you can verify the sequence logic without opening the file. Want me to add that?
+
+---
+
+## Option 4 — Labelary API (Batch Preview)
+Labelary actually has a **REST API** you can call programmatically to render labels as PNG images. I could add a function to the script that sends the first and last label to the API and saves them as `.png` files for a quick visual check — no manual copy/paste needed. Interested in that?
+
+---
+
+For most use cases, **Option 2** is the quickest sanity check. Want me to go ahead and update the script with the new font/positioning settings and optionally add the preview feature?
+
+[05/27/2026 20:41:54 +00:00] Chew, Amy:
+Yes please, and then I'll need you to ELI5 on how to run the script to check it, lol
+
+Response:
+Let me update the script first, then walk you through running it!
+The script now has updated font/positioning and two preview modes. Here's the ELI5 on how to run it:
+
+---
+
+## Step 1 — Get Python Installed
+Python is the program that runs the script. Check if you already have it:
+1. Press **Windows key + R**, type `cmd`, hit Enter — a black window opens
+2. Type `python --version` and hit Enter
+3. If you see something like `Python 3.11.2` you're good! If not, download it free from **[python.org](https://python.org)** and install it (just click Next through the installer — make sure to check **"Add Python to PATH"**)
+
+---
+
+## Step 2 — Save the Script
+Download the script from the artifact above and save it somewhere easy to find, like your **Desktop** or a folder called `Labels`.
+
+---
+
+## Step 3 — Open a Terminal in That Folder
+1. Open **File Explorer** and navigate to where you saved the script
+2. Click the **address bar** at the top (where it shows the folder path)
+3. Type `cmd` and hit Enter — the black window opens *already in that folder* ✅
+
+---
+
+## Step 4 — Run It!
+
+You have three options — just type one of these and hit Enter:
+
+| Command | What it does |
+|---|---|
+| `python zebra_sequential_labels.py --preview` | 🔍 Shows a text spot-check of first, rollover, and last labels in the console — no files created |
+| `python zebra_sequential_labels.py --png` | 🖼️ Fetches 4 rendered PNG images from Labelary and saves them in the same folder — open them like any photo |
+| `python zebra_sequential_labels.py` | 📄 Generates the full `labels_5L.zpl` file ready to send to the printer |
+
+**Start with `--preview`** to confirm the sequence logic, then `--png` to see what they actually look like, then the normal run when you're ready to print!
+
+[05/27/2026 20:45:17 +00:00] Chew, Amy:
+I just downloaded the python installation manager and the following popped up:
+"Welcome to the Python installation manager configuration helper.
+
+********************************************************************************
+
+Windows is not configured to allow paths longer than 260 characters.
+
+Python and some other apps can exceed this limit, but it requires changing a
+system-wide setting, which may need an administrator to approve, and will
+require a reboot. Some packages may fail to install without long path support
+enabled.
+Update setting now? [y/N]"
+
+what should I do?
+
+Response:
+Type **`y`** and hit Enter! Here's why it's safe and recommended:
+
+---
+
+## What This Setting Does
+Windows has an old limitation that restricts file paths (the address of a file, like `C:\Users\YourName\Documents\...`) to **260 characters max**. This dates back to the early days of Windows and most modern software — including Python packages — can exceed that limit.
+
+Enabling this just **removes that artificial cap** and lets file paths be as long as they need to be.
+
+---
+
+## Is It Safe?
+**Yes, completely.** It's actually a setting Microsoft themselves recommends enabling for modern development work. It doesn't change how your computer behaves in any noticeable way — it just prevents obscure errors down the road when Python tries to install packages with deeply nested folder structures.
+
+---
+
+## What Happens Next
+1. Type `y` → Enter
+2. It may ask for **administrator approval** — just click Yes on the popup
+3. Finish the rest of the Python installation normally
+4. **Reboot your computer** when it's done (the prompt mentioned it requires one)
+
+After the reboot, come back and we'll verify Python installed correctly with that `python --version` command and get your script running! 🎉
+
+[05/27/2026 20:46:05 +00:00] Chew, Amy:
+This came up next: The setting has been successfully updated, and will take effect after the next reboot.
+
+********************************************************************************
+
+The global shortcuts directory is not configured.
+
+Configuring this enables commands like python3.14.exe to run from your
+terminal, but is not needed for the python or py commands (for example, py
+-V:3.14).
+
+We can add the directory (C:\Users\achew1\AppData\Local\Python\bin) to PATH
+now, but you will need to restart your terminal to use it. The entry will be
+removed if you run py uninstall --purge, or else you can remove it manually when
+uninstalling Python.
+Add commands directory to your PATH now? [y/N]
+
+Response:
+Type **`y`** and hit Enter here too! Here's why:
+
+---
+
+## What This Does
+**PATH** is basically a list of folders that Windows checks when you type a command in the terminal. Adding Python's folder to PATH means you can type `python` from *any* folder in your terminal and Windows will know where to find it.
+
+Without this, you'd have to type the full address of Python every time you wanted to run something — like:
+```
+C:\Users\achew1\AppData\Local\Python\bin\python zebra_sequential_labels.py
+```
+Instead of just:
+```
+python zebra_sequential_labels.py
+```
+
+---
+
+## Is It Safe?
+**Yes, completely.** This is standard practice and exactly what the **"Add Python to PATH"** checkbox does in the traditional installer. It's just being asked as a separate step here.
+
+---
+
+## After This
+The installer will likely have a few more steps — just continue through them normally. When it's all done:
+
+1. **Reboot your computer** (needed for both changes to take effect)
+2. After rebooting, open a new `cmd` window and type:
+   ```
+   python --version
+   ```
+3. If you see `Python 3.14.x` you're all set and ready to run the label script! 🎉
+
+[05/27/2026 20:46:42 +00:00] Chew, Amy:
+install cpython now?
+
+Response:
+Type **`y`** and hit Enter! 
+
+---
+
+## What is CPython?
+CPython is the **actual Python engine** — it's the core program that reads and runs your `.py` script files. Despite the "C" in the name (it's written in the C programming language under the hood), it *is* Python — it's the official, standard version from **python.org** that everyone uses.
+
+When people say "install Python," this is exactly what they mean. The installer you're using is just a modern manager that breaks the process into these individual steps.
+
+---
+
+## In Summary — What You've Said Yes To So Far
+
+| Step | What it does |
+|---|---|
+| ✅ Long path support | Removes the 260 character file path limit |
+| ✅ Add to PATH | Lets you type `python` from any terminal window |
+| ✅ CPython | The actual Python program that runs your scripts |
+
+---
+
+Just continue saying **`y`** to any remaining prompts unless something looks unusual — the installer is just configuring everything Python needs to work properly. 
+
+Almost there — reboot when it finishes and we'll get your label script running! 🎉
+
+[05/27/2026 20:47:30 +00:00] Chew, Amy:
+Ok, back soon, thanks!
+
+Response:
+Take your time! When you're back:
+
+1. Open a `cmd` window
+2. Type `python --version` and hit Enter
+
+If it shows a version number, you're ready to go and we'll run the label script. See you soon! 🎉
+
+[05/27/2026 20:54:46 +00:00] Chew, Amy:
+3.14.5 is showing in the cmd window! :)
+
+Response:
+Excellent! 🎉 Python is installed and ready to go!
+
+Now let's run your label script. Here's what to do:
+
+---
+
+## 1 — Find Where You Saved the Script
+The script file is called `zebra_sequential_labels.py` — locate it in File Explorer (Desktop, Downloads, wherever you saved it).
+
+## 2 — Open a Terminal in That Folder
+1. Open File Explorer and navigate to the folder containing the script
+2. Click the **address bar** at the top
+3. Type `cmd` and hit Enter
+
+## 3 — Run the Preview First
+Type this and hit Enter:
+```
+python zebra_sequential_labels.py --preview
+```
+You should see a spot-check of the first, rollover, and last labels printed right in the console window. Let me know what it shows and we'll go from there! 🙂
+
+[05/27/2026 20:55:41 +00:00] Chew, Amy:
+We didn't save the file yet
+
+Response:
+You're right, my bad! Click the **Download** button on the script artifact above — it should save as `zebra_sequential_labels.py`.
+
+Save it somewhere easy to find, like:
+- Your **Desktop**
+- A new folder like `C:\Labels`
+
+Then come back and we'll run it! 😊
+
+[05/27/2026 20:59:48 +00:00] Chew, Amy:
+Microsoft Windows [Version 10.0.26100.8390]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Users\achew1\OneDrive - University of Tennessee\Desktop\Coding\Caia Labels>python zebra_sequential_labels.py --preview
+=============================================
+  PREVIEW — Range Side: 5L
+  Ladders: 1–58  |  Shelves: 1–15
+  Total labels: 870
+=============================================
+
+  ✔ First label
+    ┌─────────────────────────────┐
+    │ RNG: 5L    LDR: 01  SHF: 01 │
+    └─────────────────────────────┘
+
+  ✔ Last shelf on Ladder 01
+    ┌─────────────────────────────┐
+    │ RNG: 5L    LDR: 01  SHF: 15 │
+    └─────────────────────────────┘
+
+  ✔ First shelf on Ladder 02
+    ┌─────────────────────────────┐
+    │ RNG: 5L    LDR: 02  SHF: 01 │
+    └─────────────────────────────┘
+
+  ✔ Last label
+    ┌─────────────────────────────┐
+    │ RNG: 5L    LDR: 58  SHF: 15 │
+    └─────────────────────────────┘
+
+=============================================
+  Sequence logic looks correct if:
+  • First label  → 5L / 01 / 01
+  • Shelf resets → 5L / 01 / 15 then 5L / 02 / 01
+  • Last label   → 5L / 58 / 15
+=============================================
+
+C:\Users\achew1\OneDrive - University of Tennessee\Desktop\Coding\Caia Labels>
+
+Response:
+That's perfect! 🎉 Everything looks exactly right:
+
+- ✅ **First label** → `5L / 01 / 01`
+- ✅ **Shelf counts up** → `01` through `15`
+- ✅ **Shelf resets and Ladder increments** → `01/15` rolls over to `02/01`
+- ✅ **Last label** → `5L / 58 / 15`
+- ✅ **Total count** → 870 labels (58 × 15)
+
+---
+
+## Next Steps — Your Options
+
+**1 — Visual check with PNG previews**
+Run this to pull 4 rendered label images from Labelary and save them in your folder:
+```
+python zebra_sequential_labels.py --png
+```
+
+**2 — Generate the full ZPL file**
+When you're ready to print, run:
+```
+python zebra_sequential_labels.py
+```
+This creates `labels_5L.zpl` in the same folder, ready to send to the Zebra printer.
+
+---
+
+I'd recommend doing the `--png` check next just to visually confirm the label layout looks good before committing to an 870-label print run. Want to try that? 😊
+
+[05/27/2026 21:00:10 +00:00] Chew, Amy:
+yes
+
+Response:
+Go ahead and run:
+```
+python zebra_sequential_labels.py --png
+```
+
+It will reach out to the Labelary API over the internet and save **4 PNG files** in your `Caia Labels` folder:
+
+| File | What it shows |
+|---|---|
+| `preview_first.png` | `5L / 01 / 01` — first label |
+| `preview_ladder_end.png` | `5L / 01 / 15` — last shelf on Ladder 01 |
+| `preview_ladder_start.png` | `5L / 02 / 01` — first shelf on Ladder 02 |
+| `preview_last.png` | `5L / 58 / 15` — last label |
+
+Once it finishes, open them up in File Explorer and let me know what they look like! 🙂
+
+[05/27/2026 21:01:09 +00:00] Chew, Amy:
+C:\Users\achew1\OneDrive - University of Tennessee\Desktop\Coding\Caia Labels>python zebra_sequential_labels.py --png
+=============================================
+  LABELARY PNG PREVIEW — Range Side: 5L
+  Fetching 4 spot-check labels from Labelary API...
+=============================================
+
+  Rendering 5L / 01 / 01 → preview_5L_first_label.png
+  ✘ Could not reach Labelary API: Bad Request
+    (Check your internet connection and try again)
+
+  Rendering 5L / 01 / 15 → preview_5L_shelf_rollover.png
+  ✘ Could not reach Labelary API: Too Many Requests
+    (Check your internet connection and try again)
+
+  Rendering 5L / 02 / 01 → preview_5L_ladder_increment.png
+  ✘ Could not reach Labelary API: Bad Request
+    (Check your internet connection and try again)
+
+  Rendering 5L / 58 / 15 → preview_5L_last_label.png
+  ✘ Could not reach Labelary API: Too Many Requests
+    (Check your internet connection and try again)
+
+=============================================
+  Done! Open the PNG files in your current folder
+  (C:\Users\achew1\OneDrive - University of Tennessee\Desktop\Coding\Caia Labels)
+=============================================
+
+C:\Users\achew1\OneDrive - University of Tennessee\Desktop\Coding\Caia Labels>
+
+Response:
+No worries! The Labelary API is being a bit finicky — the "Bad Request" likely means the API URL needs a small tweak, and "Too Many Requests" means it rate-limited us after the first attempt. Let me fix the API call in the script:
+No worries — the script had the wrong API format for Labelary. I've fixed two things:
+
+1. **Corrected the API URL** — Labelary expects `8dpmm` (dots per mm) instead of `203dpmm`. These mean the same thing but Labelary only accepts the `8dpmm` format.
+2. **Added a 1-second pause** between requests to avoid the "Too Many Requests" error.
+3. **Cleans up the ZPL** before sending to strip any blank lines that may have caused the "Bad Request" error.
+
+---
+
+Download the updated script, replace the old one in your `Caia Labels` folder, then run:
+```
+python zebra_sequential_labels.py --png
+```
+It will take about 4 seconds (one per label with the pause) and save the PNG files. Let me know what you see! 🙂
+
+[05/27/2026 21:04:16 +00:00] Chew, Amy:
+These look good! If I give you the numbers for each aisle side, can we generate a zpl for all 18?
+
+Response:
+Absolutely! Go ahead and share the numbers for each range side in whatever format is easiest for you — a table, a list, however you have them. Something like:
+
+```
+1L: 12 ladders, 10 shelves
+1R: 14 ladders, 10 shelves
+...
+```
+
+Once I have all 18, I'll update the script to loop through every range side automatically and generate all 18 `.zpl` files in one run! 🙂
+
+[05/28/2026 15:49:16 +00:00] Chew, Amy:
+I think I'd like to develop a git repository for this code along with a readme about what and where changes would need to be made to account for the changes in side, number of ladders, and number of shelves.
+
+Response:
+Great idea — version control will make it easy to track changes across all 18 range sides and keep everything organized. Let me create a README for the project!
+
+Here's what I've created:
+
+- **README.md** — A full project guide covering configuration, usage, the range side reference table (with 5L already filled in), the Git workflow, and tips for partial reprints.
+- **.gitignore** — Keeps the repo clean by excluding generated `.zpl` and `.png` files.
+
+---
+
+## Setting Up the Git Repo
+
+If you don't have Git installed, grab it at **[git-scm.com](https://git-scm.com)** — install it with all defaults. Then in your `cmd` window from the `Caia Labels` folder:
+
+```bash
+git init
+git add zebra_sequential_labels.py README.md .gitignore
+git commit -m "Initial commit - Range 5L configuration"
+```
+
+If you want to host it on **GitHub** (recommended for backup), let me know and I can walk you through that too. And whenever you're ready with those ladder/shelf counts for the other 17 range sides, share them and we'll get all the ZPL files generated! 🙂
+
+[05/28/2026 17:01:11 +00:00] Chew, Amy:
+I need additional instructions on what exactly needs to be done for the printer to print the labels.
+
+Response:
+Good call — let me update the README with detailed step-by-step printing instructions!
+The README now has a full **🖨️ Printing the Labels** section. Here's a quick summary of what was added:
+
+---
+
+## What's New in the README
+
+### Printer Setup Checklist
+Before printing anything:
+- Load the correct **1" × 2" label stock**
+- **Calibrate** the printer (hold Feed button ~2 seconds) so it detects the label gap
+- Confirm the **status light is solid green**
+
+### Four Printing Methods
+
+| Method | Best For |
+|---|---|
+| **Option A — Direct Network Print** | Easiest if printer is on your network — just set the IP in the script and run |
+| **Option B — Zebra Setup Utilities** | Most control; free software from Zebra's website |
+| **Option C — USB Drive** | If the printer has a USB host port |
+| **Option D — Windows Port Copy** | Advanced/IT use |
+
+**Option A is the recommended path** — once you have the printer's IP address, it's just a one-line change in the script and everything prints automatically.
+
+Do you know yet how the Zebra printer is connected (network/Wi-Fi, USB to a PC, etc.)? That'll help narrow down which option will work best for you!
+
+[05/28/2026 17:03:16 +00:00] Chew, Amy:
+We should be able to use an IP, I don't have the printer yet to test
+
+Response:
+No problem — everything is already set up in the script for that! When the printer arrives, here's all you'll need to do:
+
+---
+
+## When the Printer Arrives
+
+### 1 — Find the Printer's IP Address
+Print a **configuration label** directly from the printer:
+- Hold the **Feed** button for ~5 seconds until it prints automatically
+- The IP address will be on that label (looks like `192.168.1.100`)
+
+### 2 — Update Two Lines in the Script
+Open `zebra_sequential_labels.py` and find these lines near the top:
+```python
+PRINT_DIRECTLY = False
+PRINTER_IP     = "192.168.1.100"
+```
+Change them to:
+```python
+PRINT_DIRECTLY = True
+PRINTER_IP     = "192.168.X.XXX"   # ← your printer's actual IP
+```
+
+### 3 — Run the Script
+```
+python zebra_sequential_labels.py
+```
+That's it — it will generate the ZPL and send it straight to the printer!
+
+---
+
+In the meantime you have everything ready to go:
+- ✅ Script is configured and tested for Range 5L
+- ✅ Preview and PNG modes verified
+- ✅ README documents the full workflow
+- ✅ Git repo is ready to initialize
+
+When you're ready, share those ladder/shelf counts for the other 17 range sides and we can prep all the jobs ahead of time! 🙂
+
+[05/28/2026 17:04:00 +00:00] Chew, Amy:
+Add this info about finding and adding ip to the readme, please
+
+Response:
+
+Done! Here's what was added to the README under **Option A**:
+
+- **Step-by-step instructions** for printing the configuration label to find the IP (hold Feed ~5 seconds)
+- A note for if the IP shows as `0.0.0.0` — meaning it hasn't been assigned a network address yet
+- Instructions on exactly **which two lines to change** in the script and what to set them to
+- A tip to **commit the IP to Git** once confirmed so you don't have to look it up again
+
+Everything else in the README remains unchanged. Ready to tackle those range side numbers whenever you have them! 🙂
+
+[05/28/2026 17:08:19 +00:00] Chew, Amy:
+"3. Generate ZPL File (Ready to Print)
+python zebra_sequential_labels.py
+Generates the full ZPL file for the configured range side (e.g., labels_5L.zpl). Send this file to the Zebra printer using one of the methods below."
+
+How does this generate the zpl file?
+
+Response:
+Great question! When you run `python zebra_sequential_labels.py` without any flags, the script does the following:
+
+---
+
+## What Happens Under the Hood
+
+### 1 — The Loop
+The script runs through every combination of Ladder and Shelf for the configured range side:
+```python
+for ladder in range(1, 59):        # 1 through 58
+    for shelf in range(1, 16):     # 1 through 15
+        all_zpl += build_label("5L", ladder, shelf)
+```
+
+### 2 — Each Label is Built as a ZPL Text Block
+The `build_label()` function returns a ZPL string (just text!) for each label — `^XA ... ^XZ`. All 870 of those strings are concatenated together into one big block of text.
+
+### 3 — That Text is Written to a File
+```python
+with open("labels_5L.zpl", "w") as f:
+    f.write(all_zpl)
+```
+That's it — a `.zpl` file is just a **plain text file** with ZPL commands inside. There's nothing special about the format — Zebra printers simply know how to read that text and turn it into printed labels.
+
+---
+
+## So Why Not Just Print Directly?
+If `PRINT_DIRECTLY = False`, the script saves the file locally and **you** are responsible for sending it to the printer. If `PRINT_DIRECTLY = True`, the script takes that same text and streams it directly to the printer over the network via its IP address instead of saving it — same content, different destination.
+
+Does that clear it up? 😊
+
+[05/28/2026 17:08:59 +00:00] Chew, Amy:
+I mean, what do I need to do, specifically, step-by-step, click by type, to generate and save the file?
+
+Response:
+Of course! Here's the full step-by-step:
+
+---
+
+## Generating the ZPL File
+
+### Step 1 — Open File Explorer
+Click the **File Explorer** icon on your taskbar (the yellow folder icon)
+
+### Step 2 — Navigate to Your Caia Labels Folder
+Find and open your `Caia Labels` folder on your Desktop
+
+### Step 3 — Open a Terminal in That Folder
+Click the **address bar** at the top of File Explorer (where it shows the folder path), type `cmd`, and hit **Enter**
+
+### Step 4 — Run the Script
+In the black terminal window that opens, type exactly this and hit **Enter**:
+```
+python zebra_sequential_labels.py
+```
+
+### Step 5 — That's It!
+You'll see this in the terminal:
+```
+Range Side : 5L
+Ladders    : 1 – 58
+Shelves    : 1 – 15
+Total labels generated: 870
+```
+A file called `labels_5L.zpl` will now be sitting right there in your `Caia Labels` folder — you can see it if you look at File Explorer. That file is what gets sent to the printer.
+
+---
+
+> 💡 No need to open the `.zpl` file or do anything else with it — just leave it in the folder. When the printer arrives and you have the IP address, the script will send it automatically when you set `PRINT_DIRECTLY = True`.
+
+[05/28/2026 17:13:15 +00:00] Chew, Amy:
+I'm thinking about trying this method, what do you think?
+
+Response:
+It looks like you might have forgotten to attach something — a link, screenshot, or description didn't come through! What method are you referring to? 😊
+
+[05/28/2026 17:13:22 +00:00] Chew, Amy:
+https://support.zebra.com/article/000026336
+
+Response:
+
+Great question! That Zebra support article is about **sending ZPL commands directly to a printer over the network** — and it's actually exactly what our script already does when you set `PRINT_DIRECTLY = True`! [doc1]
+
+Here's how the two approaches compare for your situation:
+
+---
+
+## The Method in That Article vs. Our Script
+
+| | Zebra Article Method | Our Script |
+|---|---|---|
+| **How it works** | Manually copy a `.zpl` file to the printer's network address via command line[doc1] | Automatically sends ZPL over TCP/IP to port 9100 when `PRINT_DIRECTLY = True`[doc2] |
+| **Command needed** | `copy labels_5L.zpl \\192.168.X.XXX\ZPL` | Just run `python zebra_sequential_labels.py` |
+| **Requires Python?** | No | Yes |
+| **Best for** | Quick one-off sends without running the script | Fully automated generate-and-print in one step |
+
+---
+
+## The Manual Method (No Python Required)
+
+If you just want to send an already-generated `.zpl` file to the printer directly from the command line[doc1], it's one command:
+
+```
+copy labels_5L.zpl \\192.168.X.XXX\ZPL
+```
+
+Replace `192.168.X.XXX` with your printer's actual IP address. That's it — the printer will start printing immediately![doc1]
+
+---
+
+## My Recommendation
+Since you already have Python set up and the script working, **stick with our script** — it generates and prints in one step. But the manual `copy` command is a great backup if Python ever gives you trouble. Want me to add that as an alternative option in the README?
+
+[05/28/2026 17:14:30 +00:00] Chew, Amy:
+yes, I also want to you update the readme with any step-by-step clarifications I've requested
+
+Response:
+
+Here's what was updated in the README:
+
+### New & Expanded Sections
+
+- **Usage** now has a proper Step 1 (navigate to folder, open cmd) before the run options
+- **Option 3 (Generate ZPL)** now explains exactly what happens under the hood and confirms what you'll see in the terminal when it's done
+- **PNG previews** now mentions you can just double-click the files in File Explorer like normal photos
+- **Finding the Printer's IP** is now its own dedicated section before the printing options, since both Option A and B need it
+- **Option B — Manual Send via Command Line** is now fully documented with the `copy labels_5L.zpl \\IP\ZPL` method as a no-Python-required backup option
+- **Troubleshooting table** added at the bottom for common issues
+
+Everything is organized so someone unfamiliar with the process can follow it start to finish! 🙂
+
+[05/28/2026 17:29:12 +00:00] Chew, Amy:
+Let's also add the option to test labels by using https://zplprinter.azurewebsites.net/
+The zpl can be directly uploaded there.
+
+Response:
+
+Done! Here's what was added:
+
+### New Section — 🔍 Testing Labels Online
+The README now documents **both** online testing tools side by side:
+
+| Tool | Best For |
+|---|---|
+| **ZPL Printer Online** (`zplprinter.azurewebsites.net`) | Upload a full `.zpl` file and preview the entire job |
+| **Labelary Viewer** (`labelary.com/viewer.html`) | Quick single-label paste and check |
+
+The ZPL Printer Online section includes full step-by-step instructions — generate the file, open the site, upload, and what to verify. It's positioned right before the printing section so the natural workflow is: **preview → test online → print**. 🙂
+
+[05/28/2026 17:32:51 +00:00] Chew, Amy:
+You're specific about your example that the first label should show "5l/01/01", we should also explain that it should show the range, ladder, and shelf of the labels being generated. We will be modifying the python script based on the numbers for each range.
+
+Response:
+
+Here's what changed in the README:
+
+- **All hardcoded `5L/01/01` examples** are now written generically — they tell you to verify against whatever `RANGE_SIDE`, `NUM_LADDERS`, and `NUM_SHELVES` are currently set in the script
+- **A concrete example block** is included under Option 1 (Preview Mode) showing how the expected values change when you switch to a different range side like `3R`
+- **Option 3 (Generate ZPL)** now says to verify the total count equals `NUM_LADDERS × NUM_SHELVES` rather than a hardcoded `870`
+- **ZPL Printer Online check** is similarly generalized
+
+This way the README stays accurate no matter which range side you're currently working on! 🙂
+
+[05/28/2026 17:35:03 +00:00] Chew, Amy:
+Excellent! Anything else like that we should consider?
+
+Response:
+Good time to do a full audit! Here are a few things worth considering:
+
+---
+
+## Things to Generalize/Clarify
+
+**1 — PNG Preview Filenames**
+The README lists the PNG files as `preview_5L_first_label.png` etc. — these should note that the `5L` part changes automatically based on whatever `RANGE_SIDE` is set to.
+
+**2 — File Structure Section**
+`labels_5L.zpl` and the preview filenames are listed as hardcoded examples in the file tree — should be noted as examples only.
+
+**3 — Configuration Example Values**
+The config block shows `RANGE_SIDE = "5L"`, `NUM_LADDERS = 58`, `NUM_SHELVES = 15` — worth a note that these are Range 5L's values and will be different for each job.
+
+---
+
+## Things Worth Adding
+
+**4 — `LADDER_START` Explanation**
+This variable exists in the script for partial reprints (e.g., if a roll of labels jams at Ladder 23), but it's not clearly explained in the README yet.
+
+**5 — What to Do With `.zpl` Files After Printing**
+Should they be archived somewhere? Deleted? Worth a note.
+
+**6 — Updating the Status Table**
+The range side reference table exists but doesn't explicitly tell you to update it after each job is complete.
+
+---
+
+Want me to go ahead and address all of these in the README?
+
+[05/28/2026 17:35:39 +00:00] Chew, Amy:
+yes please
+
+Response:
+
+Here's a summary of everything that was updated:
+
+1. **File Structure** — filenames now show `{RANGE_SIDE}` as a placeholder with examples, and a note that it updates automatically
+2. **Configuration block** — clearly notes that the values shown are Range 5L's specific numbers and will be different per job
+3. **`LADDER_START`** — now has its own dedicated section explaining normal use vs. partial reprint scenarios, with a warning to verify the last successfully printed ladder before using it
+4. **PNG filenames** — noted that the `{RANGE_SIDE}` portion reflects whatever is currently configured in the script
+5. **ZPL file management** — new **After Printing** section covering how to update the status table, archive vs. delete `.zpl` files, and commit the README update to Git
+6. **Status table** — now explicitly instructs you to update it after each completed job with a suggested Git commit message
+
+The workflow is now fully documented from configuration → preview → test → print → archive! 🙂
+
+[05/28/2026 17:47:59 +00:00] Chew, Amy:
+Can you help me generate a test file with a smaller number of labels? Maybe 3 ladders 3 shelves?
+
+Response:
+Sure! Here's a test ZPL file with 3 ladders × 3 shelves = **9 labels** for Range 5L:
+Here's your 9-label test file (3 ladders × 3 shelves)! Here's what to verify when you upload it:
+
+| Label # | Expected |
+|---|---|
+| 1 | `5L / 01 / 01` |
+| 2 | `5L / 01 / 02` |
+| 3 | `5L / 01 / 03` |
+| 4 | `5L / 02 / 01` ← ladder rollover |
+| 5 | `5L / 02 / 02` |
+| 6 | `5L / 02 / 03` |
+| 7 | `5L / 03 / 01` ← ladder rollover |
+| 8 | `5L / 03 / 02` |
+| 9 | `5L / 03 / 03` |
+
+Upload it to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** and you should be able to scroll through all 9 labels and confirm the sequence and layout look correct! 🙂
+
+[05/28/2026 17:49:24 +00:00] Chew, Amy:
+Let's not put 5L, let's make it clear the range is a test but that would be about the same size as the regular range numbers would be. Maybe TL (test left?)
+
+Response:
+Good thinking — `TL` is two characters just like `5L`, `3R` etc., so it will render at the exact same size and spacing on the label. Let me update the test file!
+`TL` is a great choice — two characters just like the real range sides (`5L`, `3R`, etc.) so the font size and spacing will look identical to the real thing. Here's what to verify:
+
+| Label # | Expected |
+|---|---|
+| 1 | `TL / 01 / 01` |
+| 2 | `TL / 01 / 02` |
+| 3 | `TL / 01 / 03` |
+| 4 | `TL / 02 / 01` ← ladder rollover |
+| 5 | `TL / 02 / 02` |
+| 6 | `TL / 02 / 03` |
+| 7 | `TL / 03 / 01` ← ladder rollover |
+| 8 | `TL / 03 / 02` |
+| 9 | `TL / 03 / 03` |
+
+Upload to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** and it'll give you a true-to-life preview of exactly what the labels will look like when printed! 🙂
+
+[05/28/2026 17:50:23 +00:00] Chew, Amy:
+Thanks, this will be a good way to test the printer  and physical labels, themselves.
+
+Response:
+Exactly! It's a great way to verify several things before committing to a full 870-label run:
+
+---
+
+## What the Test File Will Confirm
+
+**The Printer**
+- ✅ Network connection and IP are working
+- ✅ Print quality and darkness are good
+- ✅ Label calibration is correct (no misaligned cuts)
+
+**The Physical Labels**
+- ✅ 1" × 2" stock is the right size
+- ✅ Font is large and readable in real life
+- ✅ Three columns are clear and well-spaced
+- ✅ Adhesive works on your shelving material
+
+**The Sequence Logic**
+- ✅ Ladder rollover works correctly
+- ✅ Zero-padding looks right on a real label
+
+---
+
+It might be worth adding a note in the README recommending the test file as a **first step whenever setting up on a new printer or new label stock**. Want me to add that? Also, would you like me to add the `TL` test file to the Git repo for future use?
+
+[05/28/2026 17:50:47 +00:00] Chew, Amy:
+Yes to all, please
+
+Response:
+Let me update both at the same time!
+Also need to update the `.gitignore` to make sure the test file is **not** excluded (since we want it committed to the repo):
+Here's what was updated across all three files:
+
+### README
+- **New 🧪 Testing Before a Full Print Run section** — explains what the test confirms, describes the `TL` test file, and recommends running it whenever setting up on a new printer or label stock
+- **File structure** updated to include `test_labels_TL_3x3.zpl`
+- **Option B manual send** now includes a tip for sending the test file the same way
+- **Printer setup checklist** now references the test file as a required first step
+- **Git workflow** now includes `test_labels_TL_3x3.zpl` in the initial commit
+
+### .gitignore
+- Changed `*.zpl` to `labels_*.zpl` so generated job files are still excluded, but `test_labels_TL_3x3.zpl` **is committed** to the repo as a permanent reference
+
+Now when you initialize the repo, the test file will be part of it for anyone who uses it in the future! 🙂
+
