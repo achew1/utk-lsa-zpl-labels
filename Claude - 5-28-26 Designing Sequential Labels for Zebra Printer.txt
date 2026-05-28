@@ -1448,3 +1448,56 @@ Here's everything that was updated:
 
 The only file not updated is the `.gitignore` since nothing changed there. Go ahead and upload the TL test file to **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)** to confirm everything looks right before committing to the repo! 🙂
 
+05/28/2026 19:24:36 +00:00] Chew, Amy:
+Is the gitignore really needed?
+
+Response:
+It's not strictly *required* — Git will work fine without it. But it is genuinely useful for your project for one specific reason:
+
+---
+
+## Why It's Worth Keeping
+
+Every time you run the script it generates files like `labels_5L.zpl`, `labels_3R.zpl`, etc. — and when you run `--png` it generates preview images too. Without a `.gitignore`, if you ever run `git add .` (which adds everything in the folder), those generated files would get swept into the repo accidentally.
+
+Those files:
+- Can be **regenerated any time** by running the script — no need to store them
+- Could get **large** across 18 range sides (870 labels × 18 = 15,660 label blocks)
+- Would **clutter the repo** with files that don't need to be there
+
+---
+
+## The Bottom Line
+
+| | With `.gitignore` | Without `.gitignore` |
+|---|---|---|
+| `git add .` | Only commits the important files | Could accidentally commit generated ZPL/PNG files |
+| Repo size | Stays small and clean | Could grow unnecessarily |
+| Risk | None | Low but possible |
+
+It's a small file that saves you from a potential headache — I'd keep it! 🙂
+
+[05/28/2026 19:25:27 +00:00] Chew, Amy:
+But I'm not running the script from within the repo, it's not connected to anything locally
+
+Response:
+That's a great point — if the script lives outside the repo and you're just manually adding files to the repo as needed, then the `.gitignore` doesn't really serve a purpose. You'd never accidentally commit a generated file if it's not even in the repo folder to begin with!
+
+You could safely drop it from the repo entirely. The only files you'd ever intentionally commit are:
+- ✅ `zebra_sequential_labels.py`
+- ✅ `README.md`
+- ✅ `test_labels_TL_3x3.zpl`
+
+Want me to remove the `.gitignore` reference from the README's file structure section to keep things tidy?
+
+[05/28/2026 19:26:28 +00:00] Chew, Amy:
+yes please, or maybe just a note about it not being needed due to files being generated locally.
+
+Response:
+
+Done! The README now has a clear note under the file structure section:
+
+> *"Generated `.zpl` and `.png` files are not committed to the repo because they are run locally on a separate machine. They can be regenerated at any time by running the script. A `.gitignore` is not needed for this reason."*
+
+The `.gitignore` file itself is still available as an artifact if you ever change your mind, but it's no longer referenced in the README as something you need. 🙂
+
