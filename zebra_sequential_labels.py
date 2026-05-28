@@ -8,14 +8,15 @@ Label size: 1" H x 2" W @ 203 dpi = 203 (H) x 406 (W) dots
 
 Label layout:
   ┌──────────────────────────────────────┐
-  │  RNG   5L  │  LDR  04  │  SHF  007  │
+  │  RNG   5L  │  LDR  04  │  SHF  07   │
   │  (small)   │  (small)  │  (small)   │
   │    5L      │    04     │    07      │
   │  (large)   │  (large)  │  (large)   │
   └──────────────────────────────────────┘
   Large bold numbers dominate for easy wayfinding.
   Small text labels sit above each number.
-  Numbers are vertically centered on the label.
+  The entire block (descriptor + gap + number) is
+  vertically centered on the label as a unit.
 
 Usage:
   Normal run:   python zebra_sequential_labels.py
@@ -63,20 +64,23 @@ PRINTER_PORT   = 9100
 #   Col 2 — Ladder (center)
 #   Col 3 — Shelf  (right)
 #
-# Vertical centering math:
-#   FONT_LARGE = 80 dots tall
-#   ROW_VALUE_Y = (203 - 80) / 2 = 61.5 ≈ 62  (vertically centered)
-#   ROW_LABEL_Y = 62 - 18 = 44                 (small label sits just above)
+# Vertical centering math (entire block centered as a unit):
+#   FONT_SMALL  = 18 dots tall
+#   GAP         = 12 dots (space between descriptor and number)
+#   FONT_LARGE  = 112 dots tall
+#   Total block = 18 + 12 + 112 = 142 dots
+#   ROW_LABEL_Y = (203 - 142) / 2 = 30.5 ≈ 31  (top of block)
+#   ROW_VALUE_Y = 31 + 18 + 12 = 61             (large number)
 
 COL_RANGE_X  = 10       # Left edge of Range column
 COL_LADDER_X = 148      # Left edge of Ladder column
 COL_SHELF_X  = 286      # Left edge of Shelf column
 
-ROW_LABEL_Y  = 44       # Y position for small descriptor text
-ROW_VALUE_Y  = 62       # Y position for large number (vertically centered)
+ROW_LABEL_Y  = 31       # Y position for small descriptor text
+ROW_VALUE_Y  = 61       # Y position for large number (block vertically centered)
 
 FONT_SMALL   = 18       # Descriptor label height (dots)
-FONT_LARGE   = 80       # Value number height (dots) — vertically centered
+FONT_LARGE   = 112      # Value number height (dots)
 
 # Thin vertical dividers between columns
 DIVIDER_1_X  = 140      # Between Range and Ladder
@@ -90,7 +94,8 @@ DIVIDER_2_X  = 278      # Between Ladder and Shelf
 def build_label(range_side: str, ladder: int, shelf: int) -> str:
     """
     Builds one ZPL label block for the given location.
-    Large numbers vertically centered; small text descriptors above each.
+    Entire block (descriptor + gap + large number) is vertically
+    centered on the label as a unit.
 
     Padding logic:
       - Ladder: zero-padded to 2 digits (01–58)
@@ -105,20 +110,14 @@ def build_label(range_side: str, ladder: int, shelf: int) -> str:
 ^LL{LABEL_HEIGHT_DOTS}
 ^LH0,0
 ^CI28
-
 ^FO{COL_RANGE_X},{ROW_LABEL_Y}^A0N,{FONT_SMALL},{FONT_SMALL}^FDRNG^FS
 ^FO{COL_RANGE_X},{ROW_VALUE_Y}^A0N,{FONT_LARGE},{FONT_LARGE}^FD{range_side}^FS
-
 ^FO{DIVIDER_1_X},0^GB1,{LABEL_HEIGHT_DOTS},1^FS
-
 ^FO{COL_LADDER_X},{ROW_LABEL_Y}^A0N,{FONT_SMALL},{FONT_SMALL}^FDLDR^FS
 ^FO{COL_LADDER_X},{ROW_VALUE_Y}^A0N,{FONT_LARGE},{FONT_LARGE}^FD{ladder_str}^FS
-
 ^FO{DIVIDER_2_X},0^GB1,{LABEL_HEIGHT_DOTS},1^FS
-
 ^FO{COL_SHELF_X},{ROW_LABEL_Y}^A0N,{FONT_SMALL},{FONT_SMALL}^FDSHF^FS
 ^FO{COL_SHELF_X},{ROW_VALUE_Y}^A0N,{FONT_LARGE},{FONT_LARGE}^FD{shelf_str}^FS
-
 ^XZ
 """
     return zpl
@@ -212,15 +211,12 @@ def fetch_labelary_png(zpl: str, filename: str):
     API endpoint: http://api.labelary.com/v1/printers/8dpmm/labels/{w}x{h}/0/
     Uses 8dpmm (= 203 dpi), dimensions in inches.
     """
-    # Labelary uses inches for dimensions and dpmm for density
-    # 203 dpi = 8 dpmm
     width_in  = LABEL_WIDTH_DOTS  / 203   # = 2.0
     height_in = LABEL_HEIGHT_DOTS / 203   # = 1.0
 
     url = f"http://api.labelary.com/v1/printers/8dpmm/labels/{width_in}x{height_in}/0/"
 
     try:
-        # Clean up the ZPL — strip extra whitespace and blank lines
         zpl_clean = "\n".join(
             line for line in zpl.strip().splitlines() if line.strip()
         )
@@ -230,29 +226,25 @@ def fetch_labelary_png(zpl: str, filename: str):
         req.add_header("Accept", "image/png")
         req.add_header("Content-Type", "application/x-www-form-urlencoded")
 
-        with urllib.request.urlopen(req, timeout=15) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             png_data = response.read()
 
         with open(filename, "wb") as f:
             f.write(png_data)
 
-        print(f"  ✔ Saved → {filename}")
+        print(f"  ✔ Saved: {filename}")
 
     except urllib.error.HTTPError as e:
-        print(f"  ✘ Labelary API error {e.code}: {e.reason}")
-        print(f"    (URL tried: {url})")
+        print(f"  ✘ Could not reach Labelary API: {e.reason}")
+        print(f"    (Check your internet connection and try again)")
     except urllib.error.URLError as e:
         print(f"  ✘ Could not reach Labelary API: {e.reason}")
         print(f"    (Check your internet connection and try again)")
-    except Exception as e:
-        print(f"  ✘ Unexpected error: {e}")
 
 
 def preview_png():
     """
-    Generates PNG previews of 4 key labels using the Labelary API.
-    Adds a short delay between requests to avoid rate limiting.
-    Saves files in the current working directory.
+    Fetches PNG previews of 4 spot-check labels from the Labelary API.
     """
     last_shelf  = SHELF_START + NUM_SHELVES - 1
     last_ladder = LADDER_START + NUM_LADDERS - 1
@@ -275,7 +267,7 @@ def preview_png():
         print(f"\n  Rendering {RANGE_SIDE} / {ladder_str} / {shelf_str} → {filename}")
         zpl = build_label(RANGE_SIDE, ladder, shelf)
         fetch_labelary_png(zpl, filename)
-        time.sleep(1)   # 1 second pause between requests — avoids rate limiting
+        time.sleep(1)   # Avoid rate limiting
 
     print("\n" + "=" * 45)
     print(f"  Done! Open the PNG files in your current folder")
@@ -284,38 +276,49 @@ def preview_png():
 
 
 # ─────────────────────────────────────────────
-# DIRECT PRINT MODE
-# Sends the ZPL file directly to a networked
-# Zebra printer over TCP port 9100.
-# Enable by setting PRINT_DIRECTLY = True above.
+# SEND TO PRINTER
 # ─────────────────────────────────────────────
 
 def send_to_printer(zpl: str):
-    """Sends ZPL data directly to a networked Zebra printer via TCP."""
+    """
+    Sends ZPL data directly to a networked Zebra printer via TCP/IP.
+    Requires PRINT_DIRECTLY = True and a valid PRINTER_IP.
+    """
+    print(f"\nSending to printer at {PRINTER_IP}:{PRINTER_PORT}...")
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((PRINTER_IP, PRINTER_PORT))
             s.sendall(zpl.encode("utf-8"))
-        print(f"✔ Sent to printer at {PRINTER_IP}:{PRINTER_PORT}")
+        print("✔ Print job sent successfully!")
     except Exception as e:
-        print(f"✘ Could not send to printer: {e}")
+        print(f"✘ Failed to send to printer: {e}")
+        print("  Check that the printer is on and the IP address is correct.")
 
 
 # ─────────────────────────────────────────────
-# MAIN ENTRY POINT
+# MAIN
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
+
     if "--preview" in sys.argv:
         preview_labels()
+
     elif "--png" in sys.argv:
         preview_png()
+
     else:
-        zpl_data = generate_labels()
+        print(f"\nGenerating labels for Range Side: {RANGE_SIDE}")
+        print("-" * 45)
+        zpl = generate_labels()
 
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-            f.write(zpl_data)
+            f.write(zpl)
         print(f"✔ Saved: {OUTPUT_FILE}")
 
         if PRINT_DIRECTLY:
-            send_to_printer(zpl_data)
+            send_to_printer(zpl)
+        else:
+            print(f"\nTo print, either:")
+            print(f"  1. Set PRINT_DIRECTLY = True and re-run, or")
+            print(f"  2. Send {OUTPUT_FILE} to the printer manually")
