@@ -37,8 +37,9 @@ No additional Python packages are required — the script uses only the standard
 ```
 caia-labels/
 │
-├── zebra_sequential_labels.py   # Main label generator script
-└── README.md                    # This file
+├── zebra_sequential_labels.py        # Main label generator script
+├── test_labels_TL_3x3.zpl            # 9-label test file (TL range, 3 ladders × 3 shelves)
+└── README.md                         # This file
 ```
 
 Generated output files (not committed to Git):
@@ -51,7 +52,7 @@ Generated output files (not committed to Git):
 
 > 💡 The `{RANGE_SIDE}` portion of each filename updates automatically based on whatever `RANGE_SIDE` is set to in the script — you don't need to rename anything manually.
 
-> 💡 Add `*.zpl` and `*.png` to your `.gitignore` to keep the repo clean.
+> 💡 Add `*.zpl` and `*.png` to your `.gitignore` to keep the repo clean (the test file is committed separately as a permanent reference).
 
 ---
 
@@ -112,6 +113,76 @@ Update this table as each range side is confirmed and printed. After completing 
 | 8R         |         |         |              | ⬜ Pending |
 | 9L         |         |         |              | ⬜ Pending |
 | 9R         |         |         |              | ⬜ Pending |
+
+---
+
+## 🧪 Testing Before a Full Print Run
+
+Before printing any range side — and especially when setting up on a **new printer or new label stock** — always run a test print first using the included test file.
+
+### Why Test First?
+A 9-label test print confirms everything is working before committing to a full run (which could be 800+ labels):
+
+| What It Confirms | Details |
+|---|---|
+| ✅ Printer connection | Network/IP is working correctly |
+| ✅ Print quality | Darkness, clarity, and resolution look good |
+| ✅ Label calibration | Labels feed and cut at the right position |
+| ✅ Label stock size | 1" × 2" stock is loaded and detected correctly |
+| ✅ Adhesive | Sticks properly to your shelving material |
+| ✅ Font size & layout | Large numbers are readable at a glance in real life |
+| ✅ Sequence logic | Ladder rollover and zero-padding are correct |
+
+### The Test File
+The file `test_labels_TL_3x3.zpl` is included in the repo and contains **9 labels** using range side `TL` (Test Left) — a two-character value just like real range sides (`5L`, `3R`, etc.) so the font size and column spacing are identical to production labels.
+
+Expected sequence:
+```
+TL / 01 / 01 → TL / 01 / 02 → TL / 01 / 03
+TL / 02 / 01 → TL / 02 / 02 → TL / 02 / 03   ← ladder rollover
+TL / 03 / 01 → TL / 03 / 02 → TL / 03 / 03   ← ladder rollover
+```
+
+### How to Run the Test
+Send `test_labels_TL_3x3.zpl` to the printer using whichever method you prefer (see **Printing the Labels** below). Verify that:
+- All 9 labels print cleanly with no smearing or misalignment
+- The three columns are clear and well-spaced
+- The large numbers are easy to read
+- The ladder rolls over correctly from `01` to `02` to `03`
+
+> 💡 Keep a few printed test labels on hand as a physical reference for quality comparison when switching to new label stock.
+
+---
+
+## 🔍 Testing Labels Online
+
+Before sending to the printer, visually verify your labels using one of these free online tools:
+
+### Option 1 — ZPL Printer Online (Recommended — Upload Full File)
+**[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)**
+
+This tool lets you upload a `.zpl` file directly and preview all labels in one go — great for checking the full sequence.
+
+1. Generate your ZPL file first (see **Option 3** in Usage below)
+2. Go to [zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)
+3. Click **Choose File** and select your `.zpl` file (e.g., `labels_5L.zpl` or `test_labels_TL_3x3.zpl`)
+4. Click **Print / Preview**
+5. Scroll through the rendered labels and verify:
+   - Range side matches your configured `RANGE_SIDE`
+   - First label shows `RANGE_SIDE / 01 / 01`
+   - Shelf counts up from `01` to your configured `NUM_SHELVES`
+   - Ladder increments by 1 when shelf resets
+   - Last label shows `RANGE_SIDE / NUM_LADDERS / NUM_SHELVES`
+
+### Option 2 — Labelary Viewer (Quick Single Label Check)
+**[labelary.com/viewer.html](http://labelary.com/viewer.html)**
+
+Best for quickly checking a single label's layout without generating a full file.
+
+1. Go to [labelary.com/viewer.html](http://labelary.com/viewer.html)
+2. Paste a single `^XA...^XZ` ZPL block into the text box
+3. Set **Width** to `2.00 in`, **Height** to `1.00 in`, **DPI** to `203`
+4. Click **Refresh** to render
 
 ---
 
@@ -179,87 +250,48 @@ python zebra_sequential_labels.py
 
 You'll see a confirmation in the terminal when it's done — it will show your configured Range Side, Ladder range, Shelf range, and total label count. Verify that the total equals **NUM_LADDERS × NUM_SHELVES**.
 
-The `.zpl` file will now be visible in your `Caia Labels` folder in File Explorer. **You don't need to open it** — just leave it there and send it to the printer using one of the methods below.
-
-> 💡 A `.zpl` file is just a plain text file with printer instructions inside. Zebra printers know how to read it and turn it into printed labels.
-
----
-
-## 🔍 Testing Labels Online
-
-Before sending a job to the printer, you can visually verify label layout using either of these free online tools. Both work directly in your browser — no installation needed.
-
----
-
-### Tool 1 — ZPL Printer Online (Recommended for Full Job Testing)
-**[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net/)**
-
-This tool lets you **upload a `.zpl` file directly** and renders all labels for preview — great for checking a full job before printing.
-
-#### Step-by-step:
-1. Generate your `.zpl` file first by running `python zebra_sequential_labels.py`
-2. Open **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net/)** in your browser
-3. Click **Choose File** (or the upload button) and select your `.zpl` file from your `Caia Labels` folder
-4. Set the label size to **2" × 1"** and DPI to **203** if prompted
-5. Click **Print** or **Render** — all labels will display on screen for you to scroll through and verify
-
-✔ What to check — verify that the labels show your configured Range Side, that shelves count up correctly to your configured NUM_SHELVES, that the ladder increments when the shelf resets, and that the last label matches your configured NUM_LADDERS / NUM_SHELVES.
-
----
-
-### Tool 2 — Labelary Viewer (Quick Single Label Check)
-**[labelary.com/viewer.html](http://labelary.com/viewer.html)**
-
-Best for pasting a single label block to quickly check layout and font sizing.
-
-#### Step-by-step:
-1. Copy a single `^XA...^XZ` block from your `.zpl` file (or write one manually)
-2. Open **[labelary.com/viewer.html](http://labelary.com/viewer.html)** in your browser
-3. Paste the ZPL into the text box on the left
-4. Set **Width** to `2.00 in`, **Height** to `1.00 in`, and **DPI** to `203`
-5. Click **Refresh** — the label renders on the right
-
-✔ What to check — same as above, but for a single label only.
+The `.zpl` file will now be visible in your `Caia Labels` folder in File Explorer — you don't need to open it. Just send it to the printer using one of the methods below.
 
 ---
 
 ## 🖨️ Printing the Labels
 
 ### Before You Print — Printer Setup Checklist
-- ✅ Load **1" × 2" label stock** into the printer
-- ✅ Calibrate the printer so it detects the label gap:
-  - Hold the **Feed** button for ~2 seconds until the printer feeds a few labels and stops
-  - The status light should return to **solid green** when calibration is complete
-- ✅ Confirm the printer is powered on and the status light is **solid green**
-- ✅ Confirm the printer is connected to your network
+- ✅ Printer is powered on and connected to the network
+- ✅ **1" × 2" label stock** is loaded correctly
+- ✅ Printer is calibrated — hold the **Feed** button for ~2 seconds until it advances and cuts cleanly
+- ✅ Status light is **solid green** (not blinking)
+
+> ⚠️ **Always run the test file first** (`test_labels_TL_3x3.zpl`) when using a new printer or new label stock before printing a full range side job. See **Testing Before a Full Print Run** above.
 
 ---
 
-### Finding the Printer's IP Address
+### Finding Your Printer's IP Address
 
-You will need the printer's IP address for both printing options below. To find it:
+Both printing options below require knowing the printer's IP address. Here's how to find it:
 
-1. Make sure the printer is **powered on** and **loaded with label stock**
-2. Hold the **Feed button** for approximately **5 seconds** until the printer prints a configuration label automatically
-3. Look for the **IP Address** on the printed label (it will look like `192.168.X.XXX`)
+1. Make sure the printer is **powered on** and connected to the network
+2. Hold the **Feed** button for **~5 seconds** until the printer prints a configuration label automatically
+3. Look for the **IP Address** line on the printed label (e.g., `192.168.1.100`)
 
-> ⚠️ If the IP address shows as `0.0.0.0`, the printer has not been assigned a network address yet. Connect it to your network via ethernet and try again, or contact your IT department to assign it a static IP.
+> ⚠️ If the IP address shows as `0.0.0.0`, the printer has not been assigned a network address yet. Contact your IT department to have it assigned a static IP on your network.
 
-Once you have the IP address, commit it to the README or the script comments so you don't have to look it up again:
-```bash
-git add zebra_sequential_labels.py
-git commit -m "Set printer IP to 192.168.X.XXX"
-```
+Once you have the IP address, write it here for reference: **Printer IP: _______________**
+
+> 💡 Once confirmed, update `PRINTER_IP` in the script and commit the change to Git so you never have to look it up again:
+> ```
+> git add zebra_sequential_labels.py
+> git commit -m "Set confirmed printer IP address"
+> ```
 
 ---
 
-### Option A — Direct Print via Script (Recommended)
+### Option A — Direct Print via Python Script (Recommended)
 
-This is the easiest method — the script generates the ZPL and sends it to the printer automatically in one step.
+This is the easiest method — the script generates the ZPL and sends it to the printer in one step.
 
-#### Setup (one time only):
 1. Open `zebra_sequential_labels.py` in a text editor
-2. Find these two lines near the top:
+2. Find these two lines near the top of the file:
    ```python
    PRINT_DIRECTLY = False
    PRINTER_IP     = "192.168.1.100"
@@ -270,50 +302,42 @@ This is the easiest method — the script generates the ZPL and sends it to the 
    PRINTER_IP     = "192.168.X.XXX"   # ← your printer's actual IP address
    ```
 4. Save the file
-
-#### To print:
-```
-python zebra_sequential_labels.py
-```
-The script will generate the ZPL and send it directly to the printer. Labels will begin printing immediately.
-
----
-
-### Option B — Manual Send via Command Line
-
-Use this method if you have already generated the `.zpl` file and want to send it to the printer without running the full script, or if you prefer not to modify the script.
-
-#### In your cmd window:
-```
-copy labels_{RANGE_SIDE}.zpl \\192.168.X.XXX\ZPL
-```
-
-Replace `{RANGE_SIDE}` with your actual range side (e.g., `labels_5L.zpl`) and `192.168.X.XXX` with your printer's IP address. The printer will begin printing immediately.
-
-> 💡 This method works with any already-generated `.zpl` file and requires no changes to the script.
+5. Run the script:
+   ```
+   python zebra_sequential_labels.py
+   ```
+The script will generate the labels and send them directly to the printer automatically.
 
 ---
 
-## 🗂️ After Printing — File Management
+### Option B — Manual Send via Command Line (No Python Required)
+
+If you have already generated a `.zpl` file and just want to send it to the printer directly, use this one-line command in your terminal:
+
+```
+copy labels_5L.zpl \\192.168.X.XXX\ZPL
+```
+
+Replace `192.168.X.XXX` with your printer's actual IP address, and `labels_5L.zpl` with the name of your generated file. The printer will start printing immediately.
+
+> 💡 This method also works for the test file:
+> ```
+> copy test_labels_TL_3x3.zpl \\192.168.X.XXX\ZPL
+> ```
+
+---
+
+## ✅ After Printing
 
 Once a range side job is complete:
 
-1. **Update the Range Side Reference Table** in this README — mark the range side as ✅ Complete and fill in the ladder, shelf, and total label counts
-2. **Archive the `.zpl` file** if you want a record of the exact labels printed — move it to an `archive/` subfolder:
+1. **Update the Range Side Reference Table** in this README — fill in Ladders, Shelves, Total Labels, and mark it ✅ Complete
+2. **Archive or delete the `.zpl` file** — it can always be regenerated by running the script again. If you want to keep it for reference, move it to an `archive/` folder
+3. **Commit the README update to Git:**
    ```
-   archive/
-   ├── labels_5L.zpl
-   ├── labels_3R.zpl
-   └── ...
-   ```
-3. **Or delete the `.zpl` file** if you don't need it — it can always be regenerated by running the script again with the same configuration
-4. **Commit the README update** to Git so the status table stays current:
-   ```bash
    git add README.md
-   git commit -m "Mark 5L as complete - 58 ladders, 15 shelves, 870 labels"
+   git commit -m "✅ Range 5L complete — 58 ladders, 15 shelves, 870 labels"
    ```
-
-> 💡 If you choose to archive `.zpl` files, add `archive/*.zpl` to your `.gitignore` instead of `*.zpl` so the archive folder is tracked by Git but the files inside are not.
 
 ---
 
@@ -322,9 +346,27 @@ Once a range side job is complete:
 | Problem | Likely Cause | Fix |
 |---|---|---|
 | `python` not recognized | Python not installed or not in PATH | Reinstall Python and check "Add to PATH" |
-| Labels print in wrong order | Loop logic issue | Run `--preview` and verify rollover behavior |
-| Labels are blank | Wrong label size loaded | Confirm 1" × 2" stock is loaded |
-| Printer not found | Wrong IP address | Reprint config label and verify IP |
-| Labels misaligned | Printer needs calibration | Hold Feed ~2 seconds to recalibrate |
-| `Bad Request` from Labelary | ZPL formatting issue | Check for extra blank lines in ZPL |
-| `Too Many Requests` from Labelary | Rate limited | Wait a few seconds and try again |
+| Labels print misaligned | Printer not calibrated | Hold Feed button ~2 seconds to recalibrate |
+| Labels cut in wrong place | Wrong label size in printer settings | Confirm 1" × 2" stock is loaded |
+| `copy` command fails | Wrong IP or printer offline | Double-check IP from config label; confirm network connection |
+| Labelary API error | Rate limit or internet issue | Wait 30 seconds and try again |
+| Wrong label count | `LADDER_START` not reset to 1 | Set `LADDER_START = 1` and regenerate |
+
+---
+
+## 🗂️ Git Workflow
+
+```bash
+# First time setup
+git init
+git add zebra_sequential_labels.py README.md .gitignore test_labels_TL_3x3.zpl
+git commit -m "Initial commit - Range 5L configuration"
+
+# After each range side job
+git add README.md
+git commit -m "✅ Range 3R complete — 12 ladders, 8 shelves, 96 labels"
+
+# After any script changes
+git add zebra_sequential_labels.py
+git commit -m "Update config for Range 3R"
+```
