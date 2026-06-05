@@ -10,20 +10,28 @@ This tool generates ZPL (Zebra Programming Language) label files for a high-dens
 - **9 Ranges**, each with a **Left (L) and Right (R) side** = 18 range sides total
 - Each range side has a configurable number of **Ladders**
 - Each ladder has a configurable number of **Shelves**
+- Some ladders contain **flat file drawers** and have a higher shelf count than the standard for that range side
 
-Labels are printed on **1" H × 2" W** stock at **203 dpi** and are designed for easy wayfinding — large bold numbers for Range, Ladder, and Shelf, with small descriptor text above each. The entire block is vertically centered on the label.
+Labels are printed on **1" H × 2" W** stock at **203 dpi** and are designed for easy wayfinding — large bold numbers for Range, Ladder, and Shelf, with small descriptor text centered above each. The entire block is vertically centered on the label.
 
 ```
 ┌────────────┬────────────┬────────────┐
-│  RNG       │  LDR       │  SHF       │  ← small descriptor (18pt)
-│  5L        │  04        │  07        │  ← large bold value  (112pt)
+│   RANGE    │   LADDER   │   SHELF    │  ← small descriptor (24pt), centered above number
+│    5L      │    04      │    07      │  ← large bold value  (112pt)
 └────────────┴────────────┴────────────┘
 ```
 
 Vertical centering is calculated as a unit — the entire block (descriptor + gap + number) is centered together:
-- Total block height = 18 (descriptor) + 12 (gap) + 112 (number) = **142 dots**
-- Top of block = (203 − 142) / 2 = **31 dots**
-- Large number starts at = 31 + 18 + 12 = **61 dots**
+- Descriptor height = 24 dots
+- Gap between descriptor and number = 13 dots
+- Number height = 112 dots
+- Total block height = 24 + 13 + 112 = **149 dots**
+- Top margin = (203 − 149) / 2 = **~27 dots**
+- Descriptor starts at Y = **42 dots**
+- Large number starts at Y = **79 dots**
+- Bottom of number = 79 + 112 = **191 dots** → bottom margin = **12 dots**
+
+Each column is divided by thin vertical lines, with descriptor text and numbers independently positioned per column for precise visual centering.
 
 ---
 
@@ -50,8 +58,9 @@ caia-labels/
 Generated output files (not committed to Git):
 ```
 ├── labels_{RANGE_SIDE}.zpl               # e.g., labels_5L.zpl, labels_3R.zpl
-├── preview_{RANGE_SIDE}_first_label.png  # e.g., preview_5L_first_label.png
-├── preview_{RANGE_SIDE}_last_label.png   # e.g., preview_5L_last_label.png
+├── labels_{RANGE_SIDE}_{SUFFIX}.zpl      # e.g., labels_8L_part1.zpl (for partial runs)
+├── preview_{RANGE_SIDE}_first_label.png
+├── preview_{RANGE_SIDE}_last_label.png
 └── ...
 ```
 
@@ -63,22 +72,49 @@ Generated output files (not committed to Git):
 
 ## ⚙️ Configuration — What to Change Per Job
 
-All job-specific settings are at the **top of the script** under the `CONFIGURATION` section. You only need to edit **four values** per range side:
+All job-specific settings are at the **top of the script** under the `CONFIGURATION` section. For most range sides you only need to edit **four values**:
 
 ```python
 # ─────────────────────────────────────────────
 # CONFIGURATION — Edit this section per job
 # ─────────────────────────────────────────────
 
-RANGE_SIDE   = "5L"     # ← Change this: "1L", "1R", "2L" ... "9R"
+RANGE_SIDE   = "5L"     # ← Change this: "2R", "3L", "3R" ... "7R", "8L"
 NUM_LADDERS  = 58       # ← Change this: number of ladders on this side
-NUM_SHELVES  = 15       # ← Change this: number of shelves per ladder
+NUM_SHELVES  = 16       # ← Change this: default shelves per ladder
 LADDER_START = 1        # ← Usually stays at 1 (unless reprinting a partial run)
 ```
 
-> 💡 The values shown above (`5L`, `58`, `15`) are the settings for **Range 5L** and are included as a working example. Every time you start a new range side job, update all four values to match that range side's actual numbers.
+> 💡 The values shown above (`5L`, `58`, `16`) are the settings for **Range 5L** and are included as a working example. Every time you start a new range side job, update all relevant values to match that range side's actual numbers.
 
-> 💡 Each time you change these values for a new range side, all previews, checks, and output files will automatically reflect the new configuration — the expected label content always matches whatever is set here.
+For range sides with **flat file drawers** (some ladders have more shelves than others), also set `SPECIAL_SHELVES`:
+
+```python
+SPECIAL_SHELVES = {2:26, 4:26, 6:26}   # ← Ladder numbers that have a different shelf count
+```
+
+For range sides that require **multiple runs** (e.g., 8L), also set `FILE_SUFFIX`:
+
+```python
+FILE_SUFFIX = "_part1"   # ← Appended to the output filename: labels_8L_part1.zpl
+```
+
+---
+
+### About `SPECIAL_SHELVES`
+
+`SPECIAL_SHELVES` allows specific ladders to have a different shelf count than the default `NUM_SHELVES`. This is used for ladders that contain flat file drawers, which typically add extra shelves above the standard count.
+
+```python
+# Example for Row 5R:
+# Most ladders have 14 shelves, but ladders with flat files have 26
+SPECIAL_SHELVES = {
+    2:26, 4:26, 6:26, 8:26, 10:26, 12:26, 14:26,
+    16:26, 18:26, 20:26, 21:26, 22:26, 24:26, 26:26
+}
+```
+
+Any ladder number **not listed** in `SPECIAL_SHELVES` will automatically use `NUM_SHELVES`. Leave it as `{}` for range sides with a uniform shelf count.
 
 ---
 
@@ -94,244 +130,271 @@ LADDER_START = 1        # ← Usually stays at 1 (unless reprinting a partial ru
 
 ---
 
-### Range Side Reference Table
+### About `FILE_SUFFIX`
 
-Update this table as each range side is confirmed and printed. After completing a job, mark it ✅ Complete and fill in the ladder, shelf, and total label counts so there is a permanent record of every job.
+`FILE_SUFFIX` appends a custom string to the output filename. This is needed when a range side must be generated in multiple runs (e.g., **8L**, which has ladders 1–6 and 50–54 but nothing in between due to skeletonized structure).
 
-| Range Side | Ladders | Shelves | Total Labels | Status |
-|------------|---------|---------|--------------|--------|
-| 1L         |         |         |              | ⬜ Pending |
-| 1R         |         |         |              | ⬜ Pending |
-| 2L         |         |         |              | ⬜ Pending |
-| 2R         |         |         |              | ⬜ Pending |
-| 3L         |         |         |              | ⬜ Pending |
-| 3R         |         |         |              | ⬜ Pending |
-| 4L         |         |         |              | ⬜ Pending |
-| 4R         |         |         |              | ⬜ Pending |
-| 5L         | 58      | 15      | 870          | ✅ Complete |
-| 5R         |         |         |              | ⬜ Pending |
-| 6L         |         |         |              | ⬜ Pending |
-| 6R         |         |         |              | ⬜ Pending |
-| 7L         |         |         |              | ⬜ Pending |
-| 7R         |         |         |              | ⬜ Pending |
-| 8L         |         |         |              | ⬜ Pending |
-| 8R         |         |         |              | ⬜ Pending |
-| 9L         |         |         |              | ⬜ Pending |
-| 9R         |         |         |              | ⬜ Pending |
+**8L Run 1:**
+```python
+RANGE_SIDE   = "8L"
+NUM_LADDERS  = 6
+LADDER_START = 1
+NUM_SHELVES  = 16
+FILE_SUFFIX  = "_part1"    # → labels_8L_part1.zpl
+```
+
+**8L Run 2:**
+```python
+RANGE_SIDE   = "8L"
+NUM_LADDERS  = 5
+LADDER_START = 50
+NUM_SHELVES  = 16
+FILE_SUFFIX  = "_part2"    # → labels_8L_part2.zpl
+```
+
+Send both files to the printer separately. Reset `FILE_SUFFIX = ""` when done.
+
+---
+
+### Range Side Configuration Reference
+
+Use the table below when configuring each job. `SPECIAL_SHELVES` values are listed in shorthand — refer to the full dictionary format shown above.
+
+> 💡 Range sides marked **"Future growth — no shelving"** do not currently have shelving installed. Labels will be generated when shelving is added in future years.
+
+| Range Side | `NUM_LADDERS` | `NUM_SHELVES` | `SPECIAL_SHELVES` | Est. Labels | Status |
+|------------|---------------|---------------|-------------------|-------------|--------|
+| 1L         | —             | —             | —                 | —           | 🔲 Future growth — no shelving |
+| 1R         | —             | —             | —                 | —           | 🔲 Future growth — no shelving |
+| 2L         | —             | —             | —                 | —           | 🔲 Future growth — no shelving |
+| 2R         | 7             | 17            | `{}`              | 119         | ⬜ Not yet printed |
+| 3L         | 58            | 18            | `{}`              | 1,044       | ⬜ Not yet printed |
+| 3R         | 58            | 16            | `{}`              | 928         | ⬜ Not yet printed |
+| 4L         | 58            | 16            | `{}`              | 928         | ⬜ Not yet printed |
+| 4R         | 58            | 16            | `{}`              | 928         | ⬜ Not yet printed |
+| 5L         | 58            | 16            | `{}`              | 928         | ⬜ Not yet printed |
+| 5R         | 54            | 14            | `{2,4,6,8,10,12,14,16,18,20,21,22,24,26: 26}` | 924 | ⬜ Not yet printed |
+| 6L         | 54            | 14            | `{1,3,5,7,9,11,13,15,17,19,21,23,25,27: 25}` | 910 | ⬜ Not yet printed |
+| 6R         | 54            | 14            | `{2,6,8,10,12,14,16,18,20,22,25,27: 25}` | 888 | ⬜ Not yet printed |
+| 7L         | 54            | 14            | `{5,7,9,11,13,15,17,19: 25}` | 844 | ⬜ Not yet printed |
+| 7R         | 54            | 16            | `{1,3,5,7,9,11,13: 25}` | 927 | ⬜ Not yet printed |
+| 8L         | 11 (1–6, 50–54) | 16          | `{}`              | 176         | ⬜ Not yet printed (2 part runs) |
+| 8R         | —             | —             | —                 | —           | 🔲 Future growth — no shelving |
+| 9L         | —             | —             | —                 | —           | 🔲 Future growth — no shelving |
+| 9R         | —             | —             | —                 | —           | 🔲 Future growth — no shelving |
+
+After completing each print job, update the status column:
+- ⬜ Not yet printed
+- 🟡 ZPL generated, not yet printed
+- ✅ Printed and applied
+- 🔲 Future growth — no shelving
+
+Suggested Git commit after each job:
+```bash
+git add README.md
+git commit -m "Mark [RANGE_SIDE] as printed"
+```
+
+---
+
+## 🖥️ Usage
+
+### Step 1 — Open a Terminal in Your Labels Folder
+1. Open **File Explorer** and navigate to your `Caia Labels` folder
+2. Click the **address bar** at the top
+3. Type `cmd` and hit Enter
+
+### Step 2 — Run the Script
+
+#### Option 1 — Preview Mode (spot-check sequence logic, no files created)
+```
+python zebra_sequential_labels.py --preview
+```
+Prints first, rollover, and last labels to the console. Verify:
+- First label → `{RANGE_SIDE} / 01 / 01`
+- Shelf resets and ladder increments correctly at rollover
+- Last label → `{RANGE_SIDE} / {last ladder} / {last shelf}`
+- Total label count = `NUM_LADDERS × NUM_SHELVES` (adjusted for any `SPECIAL_SHELVES`)
+
+**Example — if configured for 3R (58 ladders, 16 shelves):**
+```
+First label  → 3R / 01 / 01
+Shelf resets → 3R / 01 / 16 then 3R / 02 / 01
+Last label   → 3R / 58 / 16
+Total labels : 928
+```
+
+#### Option 2 — PNG Preview (visual spot-check via Labelary API)
+```
+python zebra_sequential_labels.py --png
+```
+Fetches 4 rendered PNG images from the Labelary API and saves them in your folder. Open them like any photo to visually confirm the label layout. PNG filenames include the current `{RANGE_SIDE}` — e.g., `preview_3R_first_label.png`.
+
+#### Option 3 — Generate ZPL File (ready to print)
+```
+python zebra_sequential_labels.py
+```
+Generates the full ZPL file for the configured range side (e.g., `labels_5L.zpl`). You'll see a confirmation in the terminal:
+```
+Range Side : 5L
+Ladders    : 1 – 58
+Shelves    : 1 – 16
+Total labels generated: 928
+```
+The `.zpl` file will appear in your `Caia Labels` folder.
+
+#### Option 4 — Batch Mode (generate ALL range side ZPL files at once)
+```
+python zebra_sequential_labels.py --batch
+```
+Generates ZPL files for every configured range side in one run. All files appear in your `Caia Labels` folder. Output will look like:
+```
+Generating labels_2R.zpl...
+  Range Side : 2R
+  Ladders    : 1 – 7
+  Shelves    : 1 – 17
+  Total labels: 119
+
+Generating labels_3L.zpl...
+  ...
+
+Batch complete! 13 files generated.
+```
+
+> 💡 Batch configurations are stored in the `BATCH_JOBS` list near the top of the script. Update that list when new range sides are added.
 
 ---
 
 ## 🧪 Testing Before a Full Print Run
 
-Before printing any range side — and especially when setting up on a **new printer or new label stock** — always run a test print first using the included test file.
+**Always test on a new printer or new label stock before committing to a full run.**
 
-### Why Test First?
-A 9-label test print confirms everything is working before committing to a full run (which could be 800+ labels):
+### Test File
+The file `test_labels_TL_3x3.zpl` contains **9 labels** (3 ladders × 3 shelves) using the range name `TL` (Test Left). `TL` is two characters — the same as any real range side (`5L`, `3R`, etc.) — so the font size and layout are identical to production labels.
 
-| What It Confirms | Details |
-|---|---|
-| ✅ Printer connection | Network/IP is working correctly |
-| ✅ Print quality | Darkness, clarity, and resolution look good |
-| ✅ Label calibration | Labels feed and cut at the right position |
-| ✅ Label stock size | 1" × 2" stock is loaded and detected correctly |
-| ✅ Adhesive | Sticks properly to your shelving material |
-| ✅ Font size & layout | Large numbers are readable at a glance in real life |
-| ✅ Sequence logic | Ladder rollover and zero-padding are correct |
+Use this file to verify:
+- ✅ Printer network connection and IP are working
+- ✅ Print quality and darkness are acceptable
+- ✅ Label calibration is correct (no misaligned cuts)
+- ✅ 1" × 2" label stock is the correct size
+- ✅ Font is large and readable in real life
+- ✅ Three-column layout is clear and well-spaced
+- ✅ Adhesive works on your shelving material
+- ✅ Ladder rollover sequence is correct (`TL/01/03` → `TL/02/01`)
 
-### The Test File
-The file `test_labels_TL_3x3.zpl` is included in the repo and contains **9 labels** using range side `TL` (Test Left) — a two-character value just like real range sides (`5L`, `3R`, etc.) so the font size and column spacing are identical to production labels.
-
-Expected sequence:
-```
-TL / 01 / 01 → TL / 01 / 02 → TL / 01 / 03
-TL / 02 / 01 → TL / 02 / 02 → TL / 02 / 03   ← ladder rollover
-TL / 03 / 01 → TL / 03 / 02 → TL / 03 / 03   ← ladder rollover
-```
-
-### How to Run the Test
-Send `test_labels_TL_3x3.zpl` to the printer using whichever method you prefer (see **Printing the Labels** below). Verify that:
-- All 9 labels print cleanly with no smearing or misalignment
-- The three columns are clear and well-spaced
-- The large numbers are easy to read
-- The ladder rolls over correctly from `01` to `02` to `03`
-
-> 💡 Keep a few printed test labels on hand as a physical reference for quality comparison when switching to new label stock.
+> 💡 Run the test file whenever setting up on a new printer or using a new batch of label stock.
 
 ---
 
 ## 🔍 Testing Labels Online
 
-Before sending to the printer, visually verify your labels using one of these free online tools:
+Before printing, preview labels visually using one of these free tools:
 
-### Option 1 — ZPL Printer Online (Recommended — Upload Full File)
+### Option A — ZPL Printer Online (recommended for full file upload)
 **[zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)**
 
-This tool lets you upload a `.zpl` file directly and preview all labels in one go — great for checking the full sequence.
+1. Run `python zebra_sequential_labels.py` to generate the `.zpl` file
+2. Open the website
+3. Click **Upload** and select your `.zpl` file
+4. Scroll through the rendered labels and verify:
+   - First label shows correct Range, Ladder 01, Shelf 01
+   - Ladder rollover is correct
+   - Last label shows correct final ladder and shelf numbers
+   - Layout, font size, and spacing look correct
 
-1. Generate your ZPL file first (see **Option 3** in Usage below)
-2. Go to [zplprinter.azurewebsites.net](https://zplprinter.azurewebsites.net)
-3. Click **Choose File** and select your `.zpl` file (e.g., `labels_5L.zpl` or `test_labels_TL_3x3.zpl`)
-4. Click **Print / Preview**
-5. Scroll through the rendered labels and verify:
-   - Range side matches your configured `RANGE_SIDE`
-   - First label shows `{RANGE_SIDE} / 01 / 01`
-   - Shelf counts up to `{NUM_SHELVES}` then resets to `01`
-   - Ladder increments correctly on each reset
-   - Last label shows `{RANGE_SIDE} / {NUM_LADDERS} / {NUM_SHELVES}`
-   - Total label count equals `NUM_LADDERS × NUM_SHELVES`
-
-For example, if configured for Range `3R` with 10 ladders and 8 shelves:
-- First label → `3R / 01 / 01`
-- Shelf resets → `3R / 01 / 08` then `3R / 02 / 01`
-- Last label → `3R / 10 / 08`
-- Total → 80 labels
-
-### Option 2 — Labelary Viewer (Quick Single Label Check)
+### Option B — Labelary Viewer (recommended for quick single-label paste)
 **[labelary.com/viewer.html](http://labelary.com/viewer.html)**
 
-Best for quickly checking a single label's layout by pasting ZPL directly.
+1. Paste a single `^XA...^XZ` label block into the text box
+2. Set width to `2.00 in`, height to `1.00 in`, DPI to `203`
+3. Click Refresh
 
-1. Copy a single `^XA...^XZ` block from your ZPL file
-2. Paste it into the text box
-3. Set size to **2.00 in × 1.00 in** and DPI to **203**
-4. Click **Refresh**
-
----
-
-## 🚀 Usage
-
-### Step 1 — Navigate to Your Script Folder
-1. Open **File Explorer** and navigate to the folder containing `zebra_sequential_labels.py`
-2. Click the **address bar** at the top of File Explorer
-3. Type `cmd` and hit **Enter** — a terminal window opens in that folder
-
-### Option 1 — Preview Mode (Console Spot-Check)
-```
-python zebra_sequential_labels.py --preview
-```
-Prints a text spot-check of key labels (first, rollover, last) directly in the terminal — no files created. Verify that:
-- First label matches `{RANGE_SIDE} / 01 / 01`
-- Shelf resets and ladder increments correctly at the rollover
-- Last label matches `{RANGE_SIDE} / {NUM_LADDERS} / {NUM_SHELVES}`
-- Total label count equals `NUM_LADDERS × NUM_SHELVES`
-
-### Option 2 — PNG Preview (Visual Check via Labelary API)
-```
-python zebra_sequential_labels.py --png
-```
-Fetches 4 rendered label images from the Labelary API and saves them as PNG files in the same folder. Open them like any photo in File Explorer — they show exactly what the printed labels will look like.
-
-| File | What it shows |
-|---|---|
-| `preview_{RANGE_SIDE}_first_label.png` | First label of the job |
-| `preview_{RANGE_SIDE}_shelf_rollover.png` | Last shelf on Ladder 01 |
-| `preview_{RANGE_SIDE}_ladder_increment.png` | First shelf on Ladder 02 |
-| `preview_{RANGE_SIDE}_last_label.png` | Last label of the job |
-
-> 💡 Requires an internet connection to reach the Labelary API.
-
-### Option 3 — Generate ZPL File (Ready to Print)
-```
-python zebra_sequential_labels.py
-```
-This runs the script and generates a `.zpl` file (e.g., `labels_5L.zpl`) in the same folder as the script. Here's what happens under the hood:
-
-1. The script loops through every combination of Ladder and Shelf for the configured range side
-2. Each combination is built into a ZPL text block (`^XA...^XZ`)
-3. All blocks are joined together and written to `labels_{RANGE_SIDE}.zpl`
-
-When it finishes you'll see a summary in the terminal:
-```
-Range Side : 5L
-Ladders    : 1 – 58
-Shelves    : 1 – 15
-Total labels generated: 870
-```
-The `.zpl` file will appear in the same folder as the script — send this file to the Zebra printer using one of the methods below.
+> 💡 Labelary is the more accurate renderer of the two for verifying precise font positioning.
 
 ---
 
 ## 🖨️ Printing the Labels
 
 ### Printer Setup Checklist
-Before printing, make sure:
-- [ ] 1" × 2" label stock is loaded correctly
-- [ ] Printer is calibrated — hold the **Feed** button ~2 seconds until it auto-feeds and detects the label gap
-- [ ] Status light is **solid green** (ready)
-- [ ] Printer is connected to the network
-- [ ] You have run the **test file** (`test_labels_TL_3x3.zpl`) first to confirm everything looks correct
+Before starting any print job:
+- [ ] Load **1" × 2" label stock** (labels oriented horizontally)
+- [ ] **Calibrate** the printer — hold the Feed button ~2 seconds until it advances and stops; this ensures it detects the label gap correctly
+- [ ] Confirm the **status light is solid green**
+- [ ] Run the **test file** (`test_labels_TL_3x3.zpl`) to verify print quality before a full run
 
 ---
 
 ### Finding the Printer's IP Address
+
 Both printing options below require the printer's IP address. To find it:
 
-1. Hold the **Feed** button on the printer for **~5 seconds** until it prints a configuration label automatically
-2. Look for the **IP Address** line on that printed label (e.g., `192.168.1.100`)
-3. If the IP shows as `0.0.0.0`, the printer hasn't been assigned a network address yet — contact IT to assign it a static IP
+1. Make sure the printer is **powered on** and connected to the network
+2. Hold the **Feed button** for approximately **5 seconds** until the printer prints a configuration label automatically
+3. Look for the **IP Address** field on the printed label (e.g., `192.168.1.100`)
 
-> 💡 Once confirmed, update `PRINTER_IP` in the script and commit the change to Git so it's saved for future jobs.
+> ⚠️ If the IP shows as `0.0.0.0`, the printer has not been assigned a network address yet. Contact your IT department to ensure it is connected to the network and has been assigned an IP.
+
+Once you have the IP address, **update the script** so you don't have to look it up again:
+```python
+PRINT_DIRECTLY = True
+PRINTER_IP     = "192.168.X.XXX"   # ← Enter your printer's actual IP here
+```
+Then commit this change to Git:
+```bash
+git add zebra_sequential_labels.py
+git commit -m "Add confirmed printer IP address"
+```
 
 ---
 
-### Option A — Direct Network Print via Script (Recommended)
-The easiest method — the script generates the ZPL and sends it to the printer in one step.
-
-1. Open `zebra_sequential_labels.py` and find these two lines near the top:
-```python
-PRINT_DIRECTLY = False
-PRINTER_IP     = "192.168.1.100"
-```
-2. Change them to:
-```python
-PRINT_DIRECTLY = True
-PRINTER_IP     = "192.168.X.XXX"   # ← your printer's actual IP address
-```
-3. Save the file and run:
+### Option A — Direct Network Print (Recommended)
+Set `PRINT_DIRECTLY = True` and `PRINTER_IP` in the script, then run:
 ```
 python zebra_sequential_labels.py
 ```
-The script will generate the ZPL and send it directly to the printer over the network. Labels will start printing immediately.
+The script generates the ZPL and sends it directly to the printer in one step.
 
 ---
 
 ### Option B — Manual Send via Command Line
-If you prefer to send an already-generated `.zpl` file manually without running the script, use this command in your terminal:
+If you already have a generated `.zpl` file and want to send it without running the script, use the Windows `copy` command:
 
 ```
 copy labels_5L.zpl \\192.168.X.XXX\ZPL
 ```
-Replace `192.168.X.XXX` with your printer's actual IP address and `labels_5L.zpl` with your actual filename. The printer will start printing immediately.
 
-This method also works for the test file:
+Replace `192.168.X.XXX` with your printer's actual IP address and `labels_5L.zpl` with the file you want to send. The printer will start printing immediately.
+
+This method works without Python and is a useful backup if the script ever has issues.
+
+**To send the test file:**
 ```
 copy test_labels_TL_3x3.zpl \\192.168.X.XXX\ZPL
 ```
-
-> 💡 No Python required for this method — useful as a backup if the script isn't available.
 
 ---
 
 ## 📦 After Printing
 
-1. **Update the Range Side Reference Table** in this README — mark the range side ✅ Complete and fill in the ladder, shelf, and total label counts
-2. **Commit the update to Git:**
-```
+After completing a print job:
+
+1. **Update the status table** in this README — change the range side from ⬜ to ✅
+2. **Archive or delete** the generated `.zpl` file — it can be regenerated at any time by running the script
+3. **Commit the README update** to Git:
+```bash
 git add README.md
-git commit -m "Mark {RANGE_SIDE} complete - {NUM_LADDERS} ladders x {NUM_SHELVES} shelves"
-git push
+git commit -m "Mark 5L as printed and applied"
 ```
-3. **Archive or delete the generated `.zpl` file** — it can be regenerated at any time by running the script, so there's no need to keep it unless you want a local backup
 
 ---
 
-## 🛠️ Troubleshooting
+## 🔧 Troubleshooting
 
 | Problem | Likely Cause | Fix |
 |---|---|---|
-| `python` not recognized | Python not installed or not in PATH | Reinstall Python and check "Add to PATH" |
-| Labels print misaligned | Printer needs calibration | Hold Feed ~2 seconds to recalibrate |
-| Labels cut in wrong place | Wrong label size detected | Confirm 1" × 2" stock is loaded; recalibrate |
-| `Could not reach Labelary API` | No internet / API down | Check connection; try again later |
-| Printer not responding | Wrong IP or not on network | Reprint config label to confirm IP |
-| `0.0.0.0` shown as IP | No network address assigned | Contact IT to assign a static IP |
+| `python` not recognized in terminal | Python not installed or not in PATH | Reinstall Python, check "Add to PATH" option |
+| Script runs but no file appears | Check the terminal for error messages | Look for typos in configuration values |
+| Labelary API errors (`--png`) | Rate limiting or connectivity | Wait a few seconds and try again |
+| Printer not responding | Wrong IP or not connected | Reprint config label to confirm IP |
+| Labels printing misaligned | Printer needs calibration | Hold Feed button ~2 seconds to recalibrate |
+| Labels cutting in wrong place | Wrong label size loaded | Confirm 1" × 2" stock is installed |
