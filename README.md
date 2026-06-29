@@ -1,7 +1,7 @@
 # 📚 Library Shelf Label Generator
 ### Zebra ZPL Label Generator for High-Density Storage Facilities
 
-**Last Updated:** June 2025
+**Last Updated:** June 2026
 
 ---
 
